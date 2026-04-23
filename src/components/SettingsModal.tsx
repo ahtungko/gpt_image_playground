@@ -96,6 +96,9 @@ export default function SettingsModal() {
           </h3>
           <label className="block">
             <span className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">API URL</span>
+            <div className="mb-1 text-[11px] text-gray-400 dark:text-gray-500">
+              支持通过查询参数覆盖：<code>?apiUrl=</code>
+            </div>
             <input
               value={draft.baseUrl}
               onChange={(e) => setDraft((prev) => ({ ...prev, baseUrl: e.target.value }))}
@@ -107,6 +110,9 @@ export default function SettingsModal() {
           </label>
           <div className="block">
             <span className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">API Key</span>
+            <div className="mb-1 text-[11px] text-gray-400 dark:text-gray-500">
+              支持通过查询参数覆盖：<code>?apiKey=</code>
+            </div>
             <div className="relative">
               <input
                 value={draft.apiKey}

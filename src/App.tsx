@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { initStore } from './store'
+import { useStore } from './store'
+import { normalizeBaseUrl } from './lib/api'
 import Header from './components/Header'
 import SearchBar from './components/SearchBar'
 import TaskGrid from './components/TaskGrid'
@@ -10,51 +12,36 @@ import SettingsModal from './components/SettingsModal'
 import ConfirmDialog from './components/ConfirmDialog'
 import Toast from './components/Toast'
 
-async function checkForAppUpdate() {
-  const currentUrl = new URL(window.location.href)
-  currentUrl.hash = ''
-  currentUrl.searchParams.set('__version_check', Date.now().toString())
-
-  const response = await fetch(currentUrl.toString(), {
-    cache: 'no-store',
-    headers: {
-      'Cache-Control': 'no-store, no-cache, max-age=0',
-      Pragma: 'no-cache',
-    },
-  })
-  if (!response.ok) return
-
-  const html = await response.text()
-  const match = html.match(/<meta\s+name=["']app-version["']\s+content=["']([^"']+)["']/i)
-  const latestVersion = match?.[1]
-  if (latestVersion && latestVersion !== __APP_VERSION__) {
-    window.location.reload()
-  }
-}
-
 export default function App() {
-  const [isReady, setIsReady] = useState(false)
+  const setSettings = useStore((s) => s.setSettings)
 
   useEffect(() => {
-    let cancelled = false
+    const searchParams = new URLSearchParams(window.location.search)
+    const nextSettings: { baseUrl?: string; apiKey?: string } = {}
 
-    const bootstrap = async () => {
-      try {
-        await checkForAppUpdate()
-        await initStore()
-      } finally {
-        if (!cancelled) setIsReady(true)
-      }
+    const apiUrlParam = searchParams.get('apiUrl')
+    if (apiUrlParam !== null) {
+      nextSettings.baseUrl = normalizeBaseUrl(apiUrlParam.trim())
     }
 
-    void bootstrap()
-
-    return () => {
-      cancelled = true
+    const apiKeyParam = searchParams.get('apiKey')
+    if (apiKeyParam !== null) {
+      nextSettings.apiKey = apiKeyParam.trim()
     }
-  }, [])
 
-  if (!isReady) return null
+    if (Object.keys(nextSettings).length > 0) {
+      setSettings(nextSettings)
+
+      searchParams.delete('apiUrl')
+      searchParams.delete('apiKey')
+
+      const nextSearch = searchParams.toString()
+      const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`
+      window.history.replaceState(null, '', nextUrl)
+    }
+
+    initStore()
+  }, [setSettings])
 
   return (
     <>
