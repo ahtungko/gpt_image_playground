@@ -14,7 +14,7 @@
 
 <div align="center">
   <b>移动端适配</b><br>
-  <img src="docs/images/example_3.png" alt="移动端" width="420" />
+  <img src="docs/images/example_3.jpg" alt="移动端" width="420" />
 </div>
 
 ---
