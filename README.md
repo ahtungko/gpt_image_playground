@@ -1,90 +1,68 @@
 # GPT Image Playground
 
-🎨 基于 OpenAI `gpt-image-2` 接口的图片生成与编辑工具。提供简洁的 Web UI，支持文本生成图片、参考图编辑、参数调节与历史记录管理。
+🎨 基于 OpenAI `gpt-image-2` 接口的图片生成与编辑工具。提供简洁的 Web UI，支持文本生成图片、参考图编辑、可视化参数调节、历史记录管理与本地数据导入导出。
 
-在线体验：
-https://cooksleep.github.io/gpt_image_playground/
+**在线体验：** [https://cooksleep.github.io/gpt_image_playground/](https://cooksleep.github.io/gpt_image_playground/)
 
-## 示例截图
+---
 
-### 主界面
+## 📸 示例截图
 
-<img src="docs/images/example_1.png" alt="主界面" width="100%" />
+| 主界面 | 任务详情 |
+| :---: | :---: |
+| <img src="docs/images/example_1.png" alt="主界面" /> | <img src="docs/images/example_2.png" alt="任务详情" /> |
 
-### 任务详情
+<div align="center">
+  <b>移动端适配</b><br>
+  <img src="docs/images/example_3.png" alt="移动端" width="420" />
+</div>
 
-<img src="docs/images/example_2.png" alt="任务详情" width="100%" />
+---
 
-### 移动端
+## ✨ 功能特性
 
-<img src="docs/images/example_3.png" alt="移动端" width="420" />
-
-## 功能特性
-
-### 1. 图片生成与编辑
+### 🎨 核心能力
 - **文本生图**：输入提示词，调用 `images/generations` 接口生成图片。
-- **参考图编辑**：上传参考图（最多 16 张），调用 `images/edits` 接口进行图片编辑。
-- **多图输入**：支持文件选择、粘贴、拖拽三种方式添加参考图。
+- **参考图编辑**：支持上传最多 16 张参考图，调用 `images/edits` 接口进行图片编辑。支持文件选择、粘贴和拖拽三种方式。
+- **批量生成**：单次可设置生成多张图片。
 
-### 2. 参数控制
-- **尺寸**：`auto` 或自定义 `WxH`（宽高需为 16 的倍数）。
-- **质量**：`auto`、`low`、`medium`、`high`。
-- **输出格式**：`PNG`、`JPEG`、`WebP`。
-- **压缩率**：0-100（仅 JPEG / WebP 生效）。
-- **审核强度**：`auto`、`low`。
-- **批量生成**：单次最多生成多张图片。
+### ⚙️ 精细化参数控制
+- **智能尺寸选择器**：支持 `auto`、按 `1K / 2K / 4K` 结合常用比例自动计算分辨率，同时也支持手动输入自定义宽高。
+- **自动规整**：为了兼容模型限制，自定义尺寸会自动向下规整到最接近的 16 倍数。
+- **预设反推**：打开尺寸选择弹窗时，会自动根据当前尺寸匹配对应的预设比例。
+- **其他选项**：支持调整质量 (`low`, `medium`, `high`)、输出格式 (`PNG`, `JPEG`, `WebP`)、压缩率 (0-100) 以及审核强度。
 
-### 3. 历史记录管理
-- **任务卡片**：生成记录以卡片形式展示，包含缩略图、提示词、参数和耗时。
-- **搜索与筛选**：按关键词搜索，按状态（全部 / 生成中 / 完成 / 失败）筛选。
-- **复用配置**：一键将历史记录的提示词和参数回填到输入框。
-- **编辑输出**：将生成结果作为参考图添加到输入，进行迭代编辑。
-- **详情弹窗**：点击任务卡片查看完整信息，支持图片切换与灯箱浏览。
+### 📁 历史记录与工作流
+- **瀑布流任务卡片**：直观展示生成缩略图、提示词、参数和耗时。支持按状态筛选与关键词搜索。
+- **快速复用**：一键将历史记录的配置与提示词回填到输入框。
+- **迭代生成**：支持将生成的输出结果直接添加到参考图列表中，进行下一轮迭代编辑。
+- **画廊与详情**：点击任务卡片可查看完整输入输出，支持灯箱大图浏览。
+- **快捷操作**：支持图片右键或移动端长按唤出自定义菜单，快速复制或下载图片。
 
-### 4. 数据管理
-- **本地存储**：任务记录与已提交的图片数据存储在浏览器 IndexedDB 中，数据不离开本地。
-- **延迟存储**：上传到输入区的参考图会先保存在内存中，请求发出时才写入本地数据库。
-- **导入 / 导出**：支持将全部数据导出为 ZIP 文件，也可从 ZIP 文件导入。
-- **真实文件导出**：导出的图片以真实图片文件存储在 ZIP 中，而不是内嵌 base64 JSON，体积更小。
-- **图片元数据**：导出的 `manifest.json` 会记录图片路径、创建时间和来源（上传 / 生成）。
-- **图片去重**：基于 SHA-256 哈希自动去重，避免重复存储。
-- **孤立文件清理**：应用启动时会清理未被任何任务引用的本地图片数据。
+### 💾 本地数据优先
+- **IndexedDB 存储**：所有任务记录与图片数据均存储在浏览器的 IndexedDB 中，数据绝不离开本地。
+- **性能优化**：参考图采用内存缓存与延迟存储机制，图片采用 SHA-256 哈希自动去重，并在每次启动时自动清理孤立的图片碎片。
+- **导入与导出**：支持将完整数据打包为 ZIP 导出。导出的 ZIP 内包含原始图片文件（非 base64）和记录图片元数据的 `manifest.json`，方便备份与迁移。
 
-### 5. 版本与发布
-- **当前版本**：设置面板底部展示当前应用版本。
-- **新版本提示**：若检测到 GitHub Release 有更新版本，右上角会显示 `New` 提示，点击跳转到对应 Release 页面。
+---
 
-### 6. API 配置
-- **自定义端点**：支持配置 Base URL，兼容 OpenAI 官方 API 及第三方中转。
-- **默认 API URL**：支持通过 `VITE_DEFAULT_API_URL` 设置默认 API URL，未手动填写时会使用它作为默认值。
-- **模型 ID**：可自定义模型标识。
-- **超时控制**：可配置请求超时时间。
-- **查询参数填充**：支持通过 `?apiUrl=` 和 `?apiKey=` 在页面打开时快速填入 API 配置，应用后会自动从地址栏移除。
+## 🚀 部署与使用
 
-## 快速开始
+支持多种部署与使用方式，推荐使用 Docker 进行一键部署。
 
-### Docker 部署
+### 🐳 方式一：Docker 部署 (推荐)
+
+项目已将镜像发布至 GitHub Container Registry。你可以通过环境变量 `API_URL` 注入默认的 API 节点。
+
+**使用 Docker CLI：**
 
 ```bash
-# 使用项目官方镜像
 docker run -d -p 8080:80 \
   -e API_URL=https://api.openai.com \
   ghcr.io/cooksleep/gpt_image_playground:latest
 ```
 
-浏览器访问 `http://localhost:8080`。
-
-也可以自行构建镜像：
-
-```bash
-docker build -f deploy/Dockerfile -t gpt-image-playground .
-
-docker run -d -p 8080:80 \
-  -e API_URL=https://api.openai.com \
-  gpt-image-playground
-```
-
-也可以使用 `docker compose`：
+**使用 Docker Compose：**
 
 ```yaml
 services:
@@ -97,71 +75,65 @@ services:
     restart: unless-stopped
 ```
 
-```bash
-docker compose up -d
-```
+浏览器访问 `http://localhost:8080`，在页面右上角设置中填入 API Key 即可使用。
 
-### GitHub Pages 部署
+*(注：官方镜像同时提供带版本号的标签，如 `0.1.11` 或 `0.1`)*
 
-本项目已包含 GitHub Actions 工作流（`.github/workflows/deploy.yml`），当推送符合 `v*` 的 tag 时会自动构建并部署到 GitHub Pages。
+### 🌐 方式二：GitHub Pages 自动部署
 
-同时，`.github/workflows/docker.yml` 会在推送 `v*` tag 时自动构建并发布 Docker 镜像到 GitHub Container Registry：
+本项目内置了 GitHub Actions 工作流。当你将本项目 Fork 到自己的仓库后，只需推送打上 `v*` 标签的代码，即可自动触发部署。
 
-- `ghcr.io/cooksleep/gpt_image_playground:<版本号>`，例如 `0.1.8`
-- `ghcr.io/cooksleep/gpt_image_playground:<主版本.次版本>`，例如 `0.1`
-- `ghcr.io/cooksleep/gpt_image_playground:latest`
+1. 进入你的仓库 **Settings → Pages**。
+2. 将 **Source** 选项改为 **GitHub Actions**。
+3. 推送版本标签：
+   ```bash
+   git tag v0.1.2
+   git push origin v0.1.2
+   ```
+4. 等待 Action 运行完毕，即可访问你的专属 GitHub Pages。
 
-启用步骤：
+### 💻 方式三：本地开发与自行构建
 
-1. 进入仓库 **Settings → Pages**。
-2. **Source** 选择 **GitHub Actions**。
-3. 推送版本 tag，等待 Action 完成即可。
+1. **环境准备 (可选)**
+   你可以在项目根目录新建 `.env.local` 文件，配置构建时的默认 API URL：
+   ```bash
+   VITE_DEFAULT_API_URL=https://api.openai.com
+   ```
 
-示例：
+2. **安装依赖与启动开发服务器**
+   ```bash
+   npm install
+   npm run dev
+   ```
+   随后浏览器访问 `http://localhost:5173`。
 
-```bash
-git tag v0.1.2
-git push origin v0.1.2
-```
+3. **构建静态产物**
+   ```bash
+   npm run build
+   ```
+   构建输出的文件会存放在 `dist/` 目录下，你可以将其部署到任何静态文件服务器（如 Nginx、Vercel、Netlify 等）。
 
-### 构建产物
+---
 
-```bash
-npm run build
-```
+## 🛠️ API 配置说明
 
-构建产物在 `dist/` 目录下，可部署到任意静态文件服务器。
+点击页面右上角的设置图标，你可以随时更改 API 相关的配置。
+应用支持通过 URL 查询参数快速填充配置，非常适合书签或分享给他人使用：
+- `?apiUrl=https://你的代理地址.com`
+- `?apiKey=sk-xxxx`
 
-### 本地开发
+*(注：参数会在成功应用后自动从地址栏中隐藏，保护隐私)*
 
-可选：在项目根目录新建 `.env.local`，为默认 API URL 提供环境变量。
+---
 
-```bash
-VITE_DEFAULT_API_URL=https://api.openai.com
-```
+## 💻 技术栈
 
-```bash
-# 安装依赖
-npm install
+- **框架**：[React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
+- **构建工具**：[Vite](https://vite.dev/)
+- **样式**：[Tailwind CSS 3](https://tailwindcss.com/)
+- **状态管理**：[Zustand](https://zustand.docs.pmnd.rs/)
+- **数据存储**：浏览器的 IndexedDB API
 
-# 启动开发服务器
-npm run dev
-```
+## 📄 许可证
 
-浏览器访问 `http://localhost:5173`，在右上角设置中填入 API Key 即可使用。
-
-说明：
-- `VITE_DEFAULT_API_URL` 是构建时环境变量，会作为默认 API URL 写入前端。
-- 如果设置页中的 API URL 为空，应用会回退到 `VITE_DEFAULT_API_URL`，未提供时则回退到 `https://api.openai.com`。
-
-## 技术栈
-
-- [React](https://react.dev/) 19 + [TypeScript](https://www.typescriptlang.org/)
-- [Vite](https://vite.dev/)
-- [Tailwind CSS](https://tailwindcss.com/) 3
-- [Zustand](https://zustand.docs.pmnd.rs/) 状态管理
-- IndexedDB 本地持久化
-
-## 许可证
-
-[MIT](LICENSE)
+[MIT License](LICENSE)
