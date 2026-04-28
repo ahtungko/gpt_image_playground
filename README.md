@@ -118,12 +118,22 @@ VITE_DEFAULT_API_URL=https://api.openai.com/v1
 <details>
 <summary><strong>🐳 方式二：Docker 部署</strong></summary>
 
-项目已将镜像发布至 GitHub Container Registry。你可以通过环境变量 `API_URL` 注入默认的 API 节点。
+项目已将镜像发布至 GitHub Container Registry。你可以通过环境变量 `API_URL` 注入默认的 API 节点，也可以通过 `HOST`、`PORT` 指定容器内 nginx 的监听地址，默认值为 `0.0.0.0:80`。
 
 **使用 Docker CLI：**
 
 ```bash
 docker run -d -p 8080:80 \
+  -e API_URL=https://api.openai.com/v1 \
+  ghcr.io/cooksleep/gpt_image_playground:latest
+```
+
+使用 host 网络并监听宿主机 `28080` 端口：
+
+```bash
+docker run -d --network host \
+  -e HOST=0.0.0.0 \
+  -e PORT=28080 \
   -e API_URL=https://api.openai.com/v1 \
   ghcr.io/cooksleep/gpt_image_playground:latest
 ```
@@ -142,6 +152,8 @@ services:
 ```
 
 浏览器访问 `http://localhost:8080`，在页面右上角设置中填入 API Key 即可使用。
+
+如果使用 bridge 网络并修改了容器内 `PORT`，需要同步调整端口映射，例如 `PORT=28080` 时使用 `"8080:28080"`。使用 host 网络时不要配置 `ports`。
 
 *(注：官方镜像同时提供带版本号的标签，如 `0.1.11` 或 `0.1`)*
 
