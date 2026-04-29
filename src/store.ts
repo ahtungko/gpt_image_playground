@@ -23,6 +23,7 @@ import {
   hashDataUrl,
 } from './lib/db'
 import { callImageApi } from './lib/api'
+import { normalizeCaughtError } from './lib/error'
 import { validateMaskMatchesImage } from './lib/canvasImage'
 import { orderInputImagesForMask } from './lib/mask'
 import { normalizeImageSize } from './lib/size'
@@ -446,6 +447,8 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
     outputImages: [],
     status: 'running',
     error: null,
+    errorDetail: null,
+    errorKind: null,
     createdAt: Date.now(),
     finishedAt: null,
     elapsed: null,
@@ -522,6 +525,9 @@ async function executeTask(taskId: string) {
       actualParamsByImage: actualParamsByImage && Object.keys(actualParamsByImage).length > 0 ? actualParamsByImage : undefined,
       revisedPromptByImage: revisedPromptByImage && Object.keys(revisedPromptByImage).length > 0 ? revisedPromptByImage : undefined,
       status: 'done',
+      error: null,
+      errorDetail: null,
+      errorKind: null,
       finishedAt: Date.now(),
       elapsed: Date.now() - task.createdAt,
     })
@@ -537,9 +543,12 @@ async function executeTask(taskId: string) {
       useStore.getState().clearMaskDraft()
     }
   } catch (err) {
+    const normalizedError = normalizeCaughtError(err, settings.language)
     updateTaskInStore(taskId, {
       status: 'error',
-      error: err instanceof Error ? err.message : String(err),
+      error: normalizedError.message,
+      errorDetail: normalizedError.detail,
+      errorKind: normalizedError.kind,
       finishedAt: Date.now(),
       elapsed: Date.now() - task.createdAt,
     })
@@ -577,6 +586,8 @@ export async function retryTask(task: TaskRecord) {
     outputImages: [],
     status: 'running',
     error: null,
+    errorDetail: null,
+    errorKind: null,
     createdAt: Date.now(),
     finishedAt: null,
     elapsed: null,

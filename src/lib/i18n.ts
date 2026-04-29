@@ -22,6 +22,18 @@ const en = {
   'common.invalidSize': 'Invalid size',
   'common.current': 'Current: {value}',
 
+  'error.kind.auth': 'API key is invalid, disabled, or unauthorized. Check Settings.',
+  'error.kind.quota': 'Quota or billing limit reached. Try another key or check billing.',
+  'error.kind.rate_limit': 'Rate limit reached. Try again later.',
+  'error.kind.content_policy': 'Request blocked by content policy. Change the prompt or reference image.',
+  'error.kind.no_image': 'No image was returned. The API responded with text instead.',
+  'error.kind.network': 'Browser cannot reach the API. Check CORS/network or enable API proxy.',
+  'error.kind.timeout': 'Request timed out. Try again or increase timeout.',
+  'error.kind.server': 'API server error. Try again later.',
+  'error.kind.unknown': 'Image generation failed.',
+  'error.details': 'Details',
+  'error.openSettings': 'Open Settings',
+
   'header.guide': 'Guide',
   'header.settings': 'Settings',
 
@@ -253,6 +265,18 @@ const zh: Record<MessageKey, string> = {
   'common.auto': '自动',
   'common.invalidSize': '尺寸无效',
   'common.current': '当前：{value}',
+
+  'error.kind.auth': 'API Key \u65e0\u6548\u3001\u5df2\u505c\u7528\u6216\u65e0\u6743\u9650\uff0c\u8bf7\u68c0\u67e5\u8bbe\u7f6e\u3002',
+  'error.kind.quota': '\u989d\u5ea6\u6216\u8d26\u5355\u9650\u5236\u5df2\u8fbe\u5230\uff0c\u8bf7\u66f4\u6362 API Key \u6216\u68c0\u67e5\u8d26\u5355\u3002',
+  'error.kind.rate_limit': '\u8bf7\u6c42\u8fc7\u4e8e\u9891\u7e41\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002',
+  'error.kind.content_policy': '\u8bf7\u6c42\u88ab\u5185\u5bb9\u5b89\u5168\u7b56\u7565\u62e6\u622a\uff0c\u8bf7\u4fee\u6539\u63d0\u793a\u8bcd\u6216\u53c2\u8003\u56fe\u3002',
+  'error.kind.no_image': '\u63a5\u53e3\u6ca1\u6709\u8fd4\u56de\u56fe\u7247\uff0c\u800c\u662f\u8fd4\u56de\u4e86\u4e00\u6bb5\u6587\u5b57\u3002',
+  'error.kind.network': '\u6d4f\u89c8\u5668\u65e0\u6cd5\u8fde\u63a5 API\uff0c\u8bf7\u68c0\u67e5 CORS/\u7f51\u7edc\u6216\u5f00\u542f API \u4ee3\u7406\u3002',
+  'error.kind.timeout': '\u8bf7\u6c42\u8d85\u65f6\uff0c\u8bf7\u91cd\u8bd5\u6216\u8c03\u5927\u8d85\u65f6\u65f6\u95f4\u3002',
+  'error.kind.server': 'API \u670d\u52a1\u5f02\u5e38\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002',
+  'error.kind.unknown': '\u56fe\u50cf\u751f\u6210\u5931\u8d25\u3002',
+  'error.details': '\u8be6\u60c5',
+  'error.openSettings': '\u6253\u5f00\u8bbe\u7f6e',
 
   'header.guide': '操作指南',
   'header.settings': '设置',

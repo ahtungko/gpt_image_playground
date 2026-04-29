@@ -124,4 +124,25 @@ describe('callImageApi', () => {
       expect.objectContaining({ method: 'POST' }),
     )
   })
+
+  it('keeps string error payloads as full error detail', async () => {
+    const detail = 'This is actually an image of a kitten, not a dog. Do you want me to generate a kitten version?'
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      error: detail,
+    }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    }))
+
+    await expect(callImageApi({
+      settings: { ...DEFAULT_SETTINGS, apiKey: 'test-key' },
+      prompt: 'turn this dog into a sticker',
+      params: { ...DEFAULT_PARAMS },
+      inputImageDataUrls: [],
+    })).rejects.toMatchObject({
+      name: 'AppError',
+      kind: 'no_image',
+      detail,
+    })
+  })
 })

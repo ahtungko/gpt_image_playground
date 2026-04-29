@@ -15,6 +15,7 @@ export default function DetailModal() {
   const setDetailTaskId = useStore((s) => s.setDetailTaskId)
   const setLightboxImageId = useStore((s) => s.setLightboxImageId)
   const setMaskEditorImageId = useStore((s) => s.setMaskEditorImageId)
+  const setShowSettings = useStore((s) => s.setShowSettings)
   const setConfirmDialog = useStore((s) => s.setConfirmDialog)
   const showToast = useStore((s) => s.showToast)
   const settings = useStore((s) => s.settings)
@@ -166,6 +167,9 @@ export default function DetailModal() {
   const hasHandledPromptWarning = settings.codexCli || dismissedCodexCliPrompts.includes(codexCliPromptKey)
   const showPromptWarning = Boolean(currentOutputImageId && (!currentRevisedPrompt || showRevisedPrompt) && !hasHandledPromptWarning)
   const aggregateActualParams = outputLen > 0 ? { ...task.actualParams, n: outputLen } : task.actualParams
+  const errorDetail = task.errorDetail?.trim() || task.error || t('task.generationFailed')
+  const showErrorDetail = task.status === 'error' && Boolean(errorDetail)
+  const canOpenSettingsForError = task.errorKind === 'auth' || task.errorKind === 'quota' || task.errorKind === 'network'
 
   const formatTime = (ts: number | null) => {
     if (!ts) return ''
@@ -218,9 +222,8 @@ export default function DetailModal() {
   }
 
   const handleCopyError = async () => {
-    const errorText = task.error || t('task.generationFailed')
     try {
-      await copyTextToClipboard(errorText)
+      await copyTextToClipboard(errorDetail)
       showToast(t('task.fullErrorCopied'), 'success')
     } catch (err) {
       showToast(getClipboardFailureMessage(t('task.copyErrorFailed'), err, t('clipboard.embeddedPermission')), 'error')
@@ -403,6 +406,20 @@ export default function DetailModal() {
                     <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
                   </svg>
                 </button>
+                {canOpenSettingsForError && (
+                  <button
+                    type="button"
+                    onClick={() => setShowSettings(true)}
+                    className="inline-flex items-center justify-center rounded-full border border-amber-200/80 bg-white/80 px-3 py-1.5 text-amber-600 transition hover:bg-amber-50 dark:border-amber-400/20 dark:bg-white/[0.04] dark:hover:bg-amber-500/10"
+                    aria-label={t('error.openSettings')}
+                    title={t('error.openSettings')}
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.51a2 2 0 0 1 1-1.72l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleRetry}
@@ -471,6 +488,27 @@ export default function DetailModal() {
                   value={currentRevisedPrompt}
                   className="max-w-full rounded px-2 py-1 text-left text-xs leading-relaxed whitespace-pre-wrap"
                 />
+              </div>
+            )}
+            {showErrorDetail && (
+              <div className="mb-4 rounded-xl border border-red-100 bg-red-50/70 p-3 text-xs dark:border-red-400/20 dark:bg-red-500/10">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <h3 className="font-medium uppercase tracking-wider text-red-500 dark:text-red-300">
+                    {t('error.details')}
+                  </h3>
+                  {canOpenSettingsForError && (
+                    <button
+                      type="button"
+                      onClick={() => setShowSettings(true)}
+                      className="rounded-full bg-white/80 px-2.5 py-1 font-medium text-amber-600 transition hover:bg-amber-50 dark:bg-white/[0.06] dark:text-amber-300 dark:hover:bg-amber-500/10"
+                    >
+                      {t('error.openSettings')}
+                    </button>
+                  )}
+                </div>
+                <p className="max-h-40 overflow-auto whitespace-pre-wrap break-words leading-relaxed text-red-700 dark:text-red-200">
+                  {errorDetail}
+                </p>
               </div>
             )}
 

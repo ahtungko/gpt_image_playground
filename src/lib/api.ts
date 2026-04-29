@@ -1,6 +1,8 @@
 import type { AppSettings, ImageApiResponse, ResponsesApiResponse, TaskParams } from '../types'
 import { dataUrlToBlob, imageDataUrlToPngBlob, maskDataUrlToPngBlob } from './canvasImage'
 import { buildApiUrl, isApiProxyAvailable, readClientDevProxyConfig } from './devProxy'
+import { createAppError } from './error'
+import type { Locale } from './i18n'
 
 const MIME_MAP: Record<string, string> = {
   png: 'image/png',
@@ -81,20 +83,77 @@ async function fetchImageUrlAsDataUrl(url: string, fallbackMime: string, signal:
   return blobToDataUrl(await response.blob(), fallbackMime)
 }
 
-async function getApiErrorMessage(response: Response): Promise<string> {
-  let errorMsg = `HTTP ${response.status}`
-  try {
-    const errJson = await response.json()
-    if (errJson.error?.message) errorMsg = errJson.error.message
-    else if (errJson.message) errorMsg = errJson.message
-  } catch {
+function firstString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value.trim()
+  }
+  return undefined
+}
+
+function extractApiErrorPayload(payload: unknown, fallbackToJson = true): { detail?: string; code?: string } {
+  if (typeof payload === 'string') return { detail: payload }
+  if (!payload || typeof payload !== 'object') return {}
+
+  const record = payload as Record<string, unknown>
+  const error = record.error
+  let detail: string | undefined
+  let code: string | undefined
+
+  if (typeof error === 'string') {
+    detail = error
+  } else if (error && typeof error === 'object') {
+    const errorRecord = error as Record<string, unknown>
+    detail = firstString(
+      errorRecord.message,
+      errorRecord.detail,
+      errorRecord.description,
+      errorRecord.error,
+    )
+    code = firstString(errorRecord.code, errorRecord.type, errorRecord.param)
+  }
+
+  detail = detail ?? firstString(
+    record.message,
+    record.detail,
+    record.error_description,
+    record.error_message,
+  )
+  code = code ?? firstString(record.code, record.type)
+
+  if (!detail && fallbackToJson) {
     try {
-      errorMsg = await response.text()
+      detail = JSON.stringify(payload)
     } catch {
-      /* ignore */
+      detail = String(payload)
     }
   }
-  return errorMsg
+
+  return { detail, code }
+}
+
+async function getApiError(response: Response, locale?: Locale) {
+  let raw = ''
+  try {
+    raw = await response.text()
+  } catch {
+    /* ignore */
+  }
+
+  let payload: unknown
+  if (raw.trim()) {
+    try {
+      payload = JSON.parse(raw)
+    } catch {
+      payload = raw
+    }
+  }
+
+  const { detail, code } = extractApiErrorPayload(payload)
+  return createAppError(detail || raw || `HTTP ${response.status}`, {
+    status: response.status,
+    code,
+    locale,
+  })
 }
 
 function createRequestHeaders(settings: AppSettings): Record<string, string> {
@@ -173,14 +232,62 @@ export interface CallApiResult {
   revisedPrompts?: Array<string | undefined>
 }
 
-function parseResponsesImageResults(payload: ResponsesApiResponse, fallbackMime: string): Array<{
+function collectTextFields(value: unknown, texts: string[], depth = 0) {
+  if (depth > 5 || value == null) return
+  if (Array.isArray(value)) {
+    for (const item of value) collectTextFields(item, texts, depth + 1)
+    return
+  }
+  if (typeof value !== 'object') return
+
+  const record = value as Record<string, unknown>
+  for (const key of ['text', 'output_text', 'message', 'refusal']) {
+    const text = record[key]
+    if (typeof text === 'string' && text.trim()) texts.push(text.trim())
+  }
+  for (const key of ['content', 'output', 'result', 'error']) {
+    collectTextFields(record[key], texts, depth + 1)
+  }
+}
+
+function extractTextFromResponsesOutput(payload: ResponsesApiResponse): string {
+  const output = payload.output
+  if (!Array.isArray(output)) return ''
+
+  const texts: string[] = []
+  for (const item of output) {
+    if (item?.type === 'image_generation_call') continue
+    collectTextFields(item, texts)
+  }
+
+  return Array.from(new Set(texts)).join('\n\n')
+}
+
+type ResponsesImageResult = NonNullable<ResponsesApiResponse['output']>[number]['result']
+
+function getResponseImageResult(result: ResponsesImageResult, fallbackMime: string): string | null {
+  if (typeof result === 'string' && result.trim()) {
+    return normalizeBase64Image(result, fallbackMime)
+  }
+  if (!result || typeof result !== 'object') return null
+
+  const record = result as Record<string, unknown>
+  const image = firstString(record.b64_json, record.image, record.data)
+  return image ? normalizeBase64Image(image, fallbackMime) : null
+}
+
+function parseResponsesImageResults(payload: ResponsesApiResponse, fallbackMime: string, locale?: Locale): Array<{
   image: string
   actualParams?: Partial<TaskParams>
   revisedPrompt?: string
 }> {
   const output = payload.output
   if (!Array.isArray(output) || !output.length) {
-    throw new Error('API returned no image data')
+    const payloadError = extractApiErrorPayload(payload, false).detail
+    throw createAppError(payloadError || 'API returned no image data', {
+      kind: payloadError ? undefined : 'no_image',
+      locale,
+    })
   }
 
   const results: Array<{ image: string; actualParams?: Partial<TaskParams>; revisedPrompt?: string }> = []
@@ -188,10 +295,10 @@ function parseResponsesImageResults(payload: ResponsesApiResponse, fallbackMime:
   for (const item of output) {
     if (item?.type !== 'image_generation_call') continue
 
-    const result = item.result
-    if (typeof result === 'string' && result.trim()) {
+    const image = getResponseImageResult(item.result, fallbackMime)
+    if (image) {
       results.push({
-        image: normalizeBase64Image(result, fallbackMime),
+        image,
         actualParams: mergeActualParams(pickActualParams(item)),
         revisedPrompt: typeof item.revised_prompt === 'string' ? item.revised_prompt : undefined,
       })
@@ -199,7 +306,12 @@ function parseResponsesImageResults(payload: ResponsesApiResponse, fallbackMime:
   }
 
   if (!results.length) {
-    throw new Error('API returned no usable image data')
+    const payloadError = extractApiErrorPayload(payload, false).detail
+    const textDetail = extractTextFromResponsesOutput(payload)
+    throw createAppError(payloadError || textDetail || 'API returned no usable image data', {
+      kind: payloadError ? undefined : 'no_image',
+      locale,
+    })
   }
 
   return results
@@ -379,13 +491,17 @@ async function callImagesApiSingle(opts: CallApiOptions): Promise<CallApiResult>
     }
 
     if (!response.ok) {
-      throw new Error(await getApiErrorMessage(response))
+      throw await getApiError(response, settings.language)
     }
 
     const payload = await response.json() as ImageApiResponse
     const data = payload.data
     if (!Array.isArray(data) || !data.length) {
-      throw new Error('API returned no image data')
+      const payloadError = extractApiErrorPayload(payload, false).detail
+      throw createAppError(payloadError || 'API returned no image data', {
+        kind: payloadError ? undefined : 'no_image',
+        locale: settings.language,
+      })
     }
 
     const images: string[] = []
@@ -405,7 +521,11 @@ async function callImagesApiSingle(opts: CallApiOptions): Promise<CallApiResult>
     }
 
     if (!images.length) {
-      throw new Error('API returned no usable image data')
+      const payloadError = extractApiErrorPayload(payload, false).detail
+      throw createAppError(payloadError || 'API returned no usable image data', {
+        kind: payloadError ? undefined : 'no_image',
+        locale: settings.language,
+      })
     }
 
     const actualParams = mergeActualParams(
@@ -494,11 +614,11 @@ async function callResponsesImageApiSingle(opts: CallApiOptions): Promise<CallAp
     })
 
     if (!response.ok) {
-      throw new Error(await getApiErrorMessage(response))
+      throw await getApiError(response, settings.language)
     }
 
     const payload = await response.json() as ResponsesApiResponse
-    const imageResults = parseResponsesImageResults(payload, mime)
+    const imageResults = parseResponsesImageResults(payload, mime, settings.language)
     const actualParams = mergeActualParams(
       imageResults[0]?.actualParams ?? {},
     )

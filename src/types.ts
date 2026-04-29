@@ -68,6 +68,16 @@ export interface MaskDraft {
 // ===== 任务记录 =====
 
 export type TaskStatus = 'running' | 'done' | 'error'
+export type TaskErrorKind =
+  | 'auth'
+  | 'quota'
+  | 'rate_limit'
+  | 'content_policy'
+  | 'no_image'
+  | 'network'
+  | 'timeout'
+  | 'server'
+  | 'unknown'
 
 export interface TaskRecord {
   id: string
@@ -86,7 +96,12 @@ export interface TaskRecord {
   /** 输出图片的 image store id 列表 */
   outputImages: string[]
   status: TaskStatus
+  /** Short, user-friendly error summary shown in the UI */
   error: string | null
+  /** Raw API/browser error detail for copy/debug */
+  errorDetail?: string | null
+  /** Normalized error category for frontend actions */
+  errorKind?: TaskErrorKind | null
   createdAt: number
   finishedAt: number | null
   /** 总耗时毫秒 */

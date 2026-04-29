@@ -331,6 +331,11 @@ export default function TaskCard({
             <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed line-clamp-3">
               {task.prompt || t('task.noPrompt')}
             </p>
+            {task.status === 'error' && (
+              <p className="mt-1 line-clamp-2 text-xs leading-snug text-red-500 dark:text-red-300">
+                {task.error || t('task.generationFailed')}
+              </p>
+            )}
           </div>
           <div className="mt-auto flex flex-col gap-1.5">
             {/* 参数：横向滚动 */}
