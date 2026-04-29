@@ -2,17 +2,6 @@
 
 基于 OpenAI 图像生成接口的图片生成与编辑工具。提供简洁的 Web UI，支持文本生成图片、参考图编辑、可视化参数调节、历史记录管理与本地数据导入导出。
 
-
-> 如有调用非本地的 HTTP API 的需求，请使用 GitHub Pages 版本或自行部署，因为 `.dev` 域名要求页面本身及其加载的资源（的来源）均为 HTTPS。
-
-**Vercel 部署版本在线体验：** 
-https://gpt-image-playground.cooksleep.dev
-
-**GitHub Pages 部署版本在线体验：**
-https://cooksleep.github.io/gpt_image_playground
-
----
-
 ## 📸 示例截图
 
 <div align="center">
@@ -94,7 +83,7 @@ https://cooksleep.github.io/gpt_image_playground
 <details>
 <summary><strong>▲ 方式一：Vercel 一键部署 (推荐)</strong></summary>
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FCookSleep%2Fgpt_image_playground&project-name=gpt-image-playground&repository-name=gpt-image-playground)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new)
 
 点击上方按钮后，按 Vercel 页面提示导入仓库即可。项目已包含 `vercel.json`，Vercel 会自动执行 `npm install`、`npm run build`，并将 `dist/` 作为静态输出目录。
 
@@ -106,21 +95,7 @@ VITE_DEFAULT_API_URL=https://api.openai.com/v1
 
 部署完成后，打开 Vercel 分配的域名，在页面右上角设置中填入 API Key 即可使用。
 
-**更新说明：**
-
-本仓库已在 `vercel.json` 中关闭了 Vercel 的默认自动部署（防止日常提交和别人 PR 产生部署报错噪音）。
-
-**如果你希望在同步了新的代码后自动让 Vercel 部署最新版**，请进行以下简单配置：
-
-1. 打开你的 Vercel 项目设置：**Settings** -> **Git**。
-2. 找到 **Deploy Hooks** 区域，起个名字（如 `Release`），Branch 填 `main`，然后点击 **Create Hook**。
-3. 复制生成的专属 URL（形如 `https://api.vercel.com/v1/integrations/deploy/...`）。
-4. 打开你 Fork 的 GitHub 仓库设置：**Settings** -> **Secrets and variables** -> **Actions**。
-5. 点击 **New repository secret**，名称填 `VERCEL_DEPLOY_HOOK`，值粘贴你刚才复制的 URL，然后保存。
-
-配置完成后，当你每次在 GitHub 页面点击 **Sync fork** 同步了上游最新的版本 Tag 时，仓库里的 GitHub Action 就会自动帮你触发 Vercel 进行构建和部署。
-
-*如果你不配置这个 Secret，项目将不会自动部署。你需要每次在 GitHub 页面点击 **Sync fork** 后，手动在 Vercel 项目的 **Deployments** 页面点击 Redeploy 来更新。*
+Auto deploy depends on your Vercel Git settings. If auto deploy is disabled, configure a Vercel Deploy Hook for the branch you want to deploy.
 
 </details>
 
@@ -134,7 +109,7 @@ VITE_DEFAULT_API_URL=https://api.openai.com/v1
 ```bash
 docker run -d -p 8080:80 \
   -e API_URL=https://api.openai.com/v1 \
-  ghcr.io/cooksleep/gpt_image_playground:latest
+  ghcr.io/ahtungko/gpt_image_playground:latest
 ```
 
 使用 host 网络并监听宿主机 `28080` 端口：
@@ -144,7 +119,7 @@ docker run -d --network host \
   -e HOST=0.0.0.0 \
   -e PORT=28080 \
   -e API_URL=https://api.openai.com/v1 \
-  ghcr.io/cooksleep/gpt_image_playground:latest
+  ghcr.io/ahtungko/gpt_image_playground:latest
 ```
 
 **使用 Docker Compose：**
@@ -152,7 +127,7 @@ docker run -d --network host \
 ```yaml
 services:
   gpt-image-playground:
-    image: ghcr.io/cooksleep/gpt_image_playground:latest
+    image: ghcr.io/ahtungko/gpt_image_playground:latest
     environment:
       - API_URL=https://api.openai.com/v1
     ports:
@@ -173,7 +148,7 @@ services:
 **更新说明：**
 
 - 使用 `latest` 标签时，重新拉取镜像并重启容器即可更新到最新发布版本。
-- 如果希望固定版本，建议使用明确版本号标签，例如 `ghcr.io/cooksleep/gpt_image_playground:0.2.3`。
+- 如果希望固定版本，建议使用明确版本号标签，例如 `ghcr.io/ahtungko/gpt_image_playground:0.2.3`。
 - Docker Compose 更新示例：
 
 ```bash
