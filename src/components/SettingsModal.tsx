@@ -141,7 +141,7 @@ export default function SettingsModal() {
             <div className="space-y-4">
               <div className="rounded-2xl border border-gray-200/70 bg-gray-50/70 px-3 py-3 text-sm dark:border-white/[0.08] dark:bg-white/[0.03]">
                 <div className="mb-1 flex items-center justify-between gap-3">
-                  <span className="block text-xs font-medium text-gray-500 dark:text-gray-400">API URL</span>
+                  <span className="block text-xs font-medium text-gray-500 dark:text-gray-400">{t('settings.apiUrlLabel')}</span>
                   <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-600 dark:bg-blue-500/10 dark:text-blue-300">{t('settings.apiUrlEnvBadge')}</span>
                 </div>
                 <p className="text-[11px] leading-5 text-gray-500 dark:text-gray-400">
@@ -151,7 +151,7 @@ export default function SettingsModal() {
 
               <div className="block">
                 <div className="mb-1 flex items-center justify-between">
-                  <span className="block text-xs text-gray-500 dark:text-gray-400">Codex CLI</span>
+                  <span className="block text-xs text-gray-500 dark:text-gray-400">{t('settings.codexCli')}</span>
                   <button
                     type="button"
                     onClick={() => {
@@ -162,7 +162,7 @@ export default function SettingsModal() {
                     className={`relative inline-flex h-3.5 w-6 items-center rounded-full transition-colors ${draft.codexCli ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'}`}
                     role="switch"
                     aria-checked={draft.codexCli}
-                    aria-label="Codex CLI"
+                    aria-label={t('settings.codexCli')}
                   >
                     <span className={`inline-block h-2.5 w-2.5 transform rounded-full bg-white shadow transition-transform ${draft.codexCli ? 'translate-x-[11px]' : 'translate-x-[2px]'}`} />
                   </button>
@@ -198,7 +198,7 @@ export default function SettingsModal() {
               )}
 
               <div className="block">
-                <span className="block text-xs text-gray-500 dark:text-gray-400 mb-1">API Key</span>
+                <span className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('settings.apiKey')}</span>
                 <div className="relative">
                   <input
                     value={draft.apiKey}
@@ -249,8 +249,8 @@ export default function SettingsModal() {
                     commitSettings(nextDraft)
                   }}
                   options={[
-                    { label: 'Images API (/v1/images)', value: 'images' },
-                    { label: 'Responses API (/v1/responses)', value: 'responses' },
+                    { label: t('settings.apiModeImages'), value: 'images' },
+                    { label: t('settings.apiModeResponses'), value: 'responses' },
                   ]}
                   className="w-full rounded-xl border border-gray-200/70 bg-white/60 px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-300 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-gray-200 dark:focus:border-blue-500/50"
                 />

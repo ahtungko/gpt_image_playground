@@ -25,6 +25,7 @@ import {
 import { callImageApi } from './lib/api'
 import { normalizeCaughtError } from './lib/error'
 import { validateMaskMatchesImage } from './lib/canvasImage'
+import { localizeKnownError } from './lib/localizedError'
 import { orderInputImagesForMask } from './lib/mask'
 import { normalizeImageSize } from './lib/size'
 import { normalizeLocale, translate, type MessageKey } from './lib/i18n'
@@ -421,7 +422,7 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
       if (!inputImages.some((img) => img.id === maskDraft.targetImageId)) {
         useStore.getState().clearMaskDraft()
       }
-      showToast(err instanceof Error ? err.message : String(err), 'error')
+      showToast(localizeKnownError(err, useStore.getState().settings.language), 'error')
       return
     }
   }

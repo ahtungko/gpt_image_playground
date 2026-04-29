@@ -548,7 +548,7 @@ export default function DetailModal() {
                           />
                           {isMaskTarget && (
                             <span className="absolute left-1 top-1 rounded bg-blue-500/90 px-1.5 py-0.5 text-[8px] leading-none text-white font-bold tracking-wider backdrop-blur-sm z-10 pointer-events-none">
-                              MASK
+                              {t('input.maskBadge')}
                             </span>
                           )}
                         </div>

@@ -2,9 +2,10 @@ import React, { useEffect, useState, useRef } from 'react'
 import { useStore, addImageFromUrl } from '../store'
 import { useI18n } from '../hooks/useI18n'
 import { copyBlobToClipboard, getClipboardFailureMessage } from '../lib/clipboard'
+import { localizeKnownError } from '../lib/localizedError'
 
 export default function ImageContextMenu() {
-  const { t } = useI18n()
+  const { locale, t } = useI18n()
   const [menuInfo, setMenuInfo] = useState<{ src: string; x: number; y: number } | null>(null)
   const showToast = useStore((s) => s.showToast)
   const inputImages = useStore((s) => s.inputImages)
@@ -119,7 +120,7 @@ export default function ImageContextMenu() {
       showToast(t('context.addedReference'), 'success')
     } catch (err) {
       console.error(err)
-      showToast(t('context.addReferenceFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
+      showToast(t('context.addReferenceFailed', { error: localizeKnownError(err, locale) }), 'error')
     }
   }
 

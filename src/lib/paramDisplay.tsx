@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { TaskParams, TaskRecord } from '../types'
 import { useI18n } from '../hooks/useI18n'
+import type { MessageKey } from './i18n'
 import ViewportTooltip from '../components/ViewportTooltip'
 
 type ParamKey = keyof TaskParams
@@ -16,6 +17,20 @@ interface ActualValueBadgeProps {
   value: string
   className?: string
   variant?: 'highlight' | 'normal'
+}
+
+const PARAM_VALUE_KEYS: Record<string, MessageKey> = {
+  auto: 'param.value.auto',
+  low: 'param.value.low',
+  medium: 'param.value.medium',
+  high: 'param.value.high',
+}
+
+function formatParamValue(value: string, t: (key: MessageKey) => string): string {
+  const key = PARAM_VALUE_KEYS[value]
+  if (key) return t(key)
+  if (value === 'png' || value === 'jpeg' || value === 'webp') return value.toUpperCase()
+  return value
 }
 
 export function ActualValueBadge({ value, className = '', variant = 'highlight' }: ActualValueBadgeProps) {
@@ -86,40 +101,45 @@ export function getParamDisplay(task: TaskRecord, paramKey: ParamKey, actualPara
 }
 
 export function ParamValue({ task, paramKey, className = '', actualParams }: ParamValueProps) {
+  const { t } = useI18n()
   const { displayValue, isMismatch } = getParamDisplay(task, paramKey, actualParams)
+  const displayLabel = formatParamValue(displayValue, t)
 
   if (isMismatch) {
-    return <ActualValueBadge value={displayValue} className={className} />
+    return <ActualValueBadge value={displayLabel} className={className} />
   }
 
   return (
     <span className={`${className} bg-gray-100 text-gray-500 dark:bg-white/[0.04] dark:text-gray-400`}>
-      {displayValue}
+      {displayLabel}
     </span>
   )
 }
 
 export function DetailParamValue({ task, paramKey, className = '', actualParams }: ParamValueProps) {
+  const { t } = useI18n()
   const { displayValue, isMismatch, requestedValue, isAutoResolved } = getParamDisplay(task, paramKey, actualParams)
+  const displayLabel = formatParamValue(displayValue, t)
+  const requestedLabel = formatParamValue(requestedValue, t)
 
   if (!isMismatch) {
     if (isAutoResolved) {
       return (
         <span className={`inline-flex items-center gap-1 ${className}`}>
-          <span className="text-gray-700 dark:text-gray-300">{requestedValue}</span>
+          <span className="text-gray-700 dark:text-gray-300">{requestedLabel}</span>
           <span className="text-gray-300 dark:text-gray-600">|</span>
-          <ActualValueBadge value={displayValue} variant="normal" className="rounded px-1 py-0.5" />
+          <ActualValueBadge value={displayLabel} variant="normal" className="rounded px-1 py-0.5" />
         </span>
       )
     }
-    return <span className={`text-gray-700 dark:text-gray-300 ${className}`}>{displayValue}</span>
+    return <span className={`text-gray-700 dark:text-gray-300 ${className}`}>{displayLabel}</span>
   }
 
   return (
     <span className={`inline-flex items-center gap-1 ${className}`}>
-      <span className="text-gray-700 dark:text-gray-300">{requestedValue}</span>
+      <span className="text-gray-700 dark:text-gray-300">{requestedLabel}</span>
       <span className="text-gray-300 dark:text-gray-600">|</span>
-      <ActualValueBadge value={displayValue} className="rounded px-1 py-0.5" />
+      <ActualValueBadge value={displayLabel} className="rounded px-1 py-0.5" />
     </span>
   )
 }

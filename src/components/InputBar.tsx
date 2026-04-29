@@ -4,6 +4,7 @@ import { useStore, submitTask, addImageFromFile, updateTaskInStore, removeMultip
 import { DEFAULT_PARAMS } from '../types'
 import { normalizeImageSize } from '../lib/size'
 import { createMaskPreviewDataUrl } from '../lib/canvasImage'
+import { localizeKnownError } from '../lib/localizedError'
 import { useI18n } from '../hooks/useI18n'
 import Select from './Select'
 import SizePickerModal from './SizePickerModal'
@@ -32,7 +33,7 @@ function useIsMobile() {
 }
 
 export default function InputBar() {
-  const { t } = useI18n()
+  const { locale, t } = useI18n()
   const prompt = useStore((s) => s.prompt)
   const setPrompt = useStore((s) => s.setPrompt)
   const inputImages = useStore((s) => s.inputImages)
@@ -359,7 +360,7 @@ export default function InputBar() {
       }
     } catch (err) {
       useStore.getState().showToast(
-        t('input.imageAddFailed', { error: err instanceof Error ? err.message : String(err) }),
+        t('input.imageAddFailed', { error: localizeKnownError(err, locale) }),
         'error',
       )
     }
@@ -751,7 +752,7 @@ export default function InputBar() {
           />
           {isMaskTarget && (
             <span className="absolute left-1 top-1 rounded bg-blue-500/90 px-1.5 py-0.5 text-[8px] leading-none text-white font-bold tracking-wider backdrop-blur-sm z-10 pointer-events-none">
-              MASK
+              {t('input.maskBadge')}
             </span>
           )}
           {canEdit && (
@@ -857,10 +858,10 @@ export default function InputBar() {
             if (!settings.codexCli) setParams({ quality: val as any })
           }}
           options={[
-            { label: 'auto', value: 'auto' },
-            { label: 'low', value: 'low' },
-            { label: 'medium', value: 'medium' },
-            { label: 'high', value: 'high' },
+            { label: t('param.value.auto'), value: 'auto' },
+            { label: t('param.value.low'), value: 'low' },
+            { label: t('param.value.medium'), value: 'medium' },
+            { label: t('param.value.high'), value: 'high' },
           ]}
           disabled={settings.codexCli}
           className={settings.codexCli
@@ -931,8 +932,8 @@ export default function InputBar() {
             if (settings.apiMode !== 'responses') setParams({ moderation: val as any })
           }}
           options={[
-            { label: 'auto', value: 'auto' },
-            { label: 'low', value: 'low' },
+            { label: t('param.value.auto'), value: 'auto' },
+            { label: t('param.value.low'), value: 'low' },
           ]}
           disabled={settings.apiMode === 'responses'}
           className={settings.apiMode === 'responses'

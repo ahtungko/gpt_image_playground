@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { ensureImageCached, useStore } from '../store'
 import { canvasToBlob, loadImage } from '../lib/canvasImage'
 import { storeImage } from '../lib/db'
+import { localizeKnownError } from '../lib/localizedError'
 import { prepareMaskTargetDataUrl, replaceMaskTargetImage } from '../lib/maskPreprocess'
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape'
 import { useI18n } from '../hooks/useI18n'
@@ -101,7 +102,7 @@ function blobToDataUrl(blob: Blob): Promise<string> {
 }
 
 export default function MaskEditorModal() {
-  const { t } = useI18n()
+  const { locale, t } = useI18n()
   const imageId = useStore((s) => s.maskEditorImageId)
   const setMaskEditorImageId = useStore((s) => s.setMaskEditorImageId)
   const maskDraft = useStore((s) => s.maskDraft)
@@ -516,7 +517,7 @@ export default function MaskEditorModal() {
           } catch (err) {
             fillWhiteMask(maskCanvas)
             showToast(
-              t('mask.draftLoadFailed', { error: err instanceof Error ? err.message : String(err) }),
+              t('mask.draftLoadFailed', { error: localizeKnownError(err, locale) }),
               'error',
             )
           }
@@ -534,7 +535,7 @@ export default function MaskEditorModal() {
         requestAnimationFrame(() => resetViewTransform())
       } catch (err) {
         if (!cancelled) {
-          showToast(err instanceof Error ? err.message : String(err), 'error')
+          showToast(localizeKnownError(err, locale), 'error')
           setMaskEditorImageId(null)
         }
       } finally {
@@ -557,7 +558,7 @@ export default function MaskEditorModal() {
       panGestureRef.current = null
       setIsPanning(false)
     }
-  }, [imageId, maskDraft, setMaskEditorImageId, showToast])
+  }, [imageId, locale, maskDraft, setMaskEditorImageId, showToast, t])
 
   useEffect(() => {
     if (isAltKeyPressed) {
@@ -818,7 +819,7 @@ export default function MaskEditorModal() {
         activeSessionIdRef.current !== savingSessionId ||
         useStore.getState().maskEditorImageId !== savingImageId
       ) return
-      showToast(err instanceof Error ? err.message : String(err), 'error')
+      showToast(localizeKnownError(err, locale), 'error')
     } finally {
       if (saveTokenRef.current === token) setIsSaving(false)
     }

@@ -346,7 +346,7 @@ export default function TaskCard({
               <ParamValue task={task} paramKey="n" className="text-xs px-1.5 py-0.5 rounded flex-shrink-0" actualParams={aggregateActualParams} />
               {task.maskImageId && (
                 <span className="text-xs px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 flex-shrink-0">
-                  mask
+                  {t('task.maskBadge')}
                 </span>
               )}
               </div>
