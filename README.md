@@ -239,9 +239,9 @@ docker compose up -d
    - `changeOrigin`：转发时是否把请求头中的 `Host` 改成 `target` 的主机名，通常建议保持 `true`。
    - `secure`：当 `target` 是 HTTPS 时是否校验证书；本地自签名证书可设为 `false`。
 
-   修改配置后需要重新启动开发服务器，并在页面设置中的 `API URL` 填入与 `target` 相同的地址，然后开启 **API 代理**。开启后，请求会改写为 `prefix` 开头的同源地址，例如 `/api-proxy/v1/images/generations` 或 `/api-proxy/v1/responses`。
+   修改配置后需要重新启动开发服务器，并确保 `.env.local` 中的 `VITE_DEFAULT_API_URL` 与 `target` 指向同一个 API，然后开启 **API 代理**。开启后，请求会改写为 `prefix` 开头的同源地址，例如 `/api-proxy/v1/images/generations` 或 `/api-proxy/v1/responses`。
 
-   > 如果 `target` 或填入的 `API URL` 已经包含了 `/v1` 路径，则同源请求的路径将不再重复拼接 `/v1`，例如会直接变为 `/api-proxy/responses`
+   > 如果 `target` 或 `VITE_DEFAULT_API_URL` 已经包含了 `/v1` 路径，则同源请求的路径将不再重复拼接 `/v1`，例如会直接变为 `/api-proxy/responses`
 
    如果需要在非 Docker 的线上部署中使用代理，请使用 Vercel Function、Cloudflare Worker、Nginx 反向代理或自建后端等服务端方案。
 
@@ -257,30 +257,20 @@ docker compose up -d
 
 ## 🛠️ API 配置说明
 
-点击页面右上角的设置图标，你可以随时更改 API 相关的配置。
+点击页面右上角的设置图标，你可以随时更改 API Key、接口模式和模型等配置。API URL 由部署环境变量 `VITE_DEFAULT_API_URL` 控制，不会在设置中显示或允许浏览器端修改。
 
 - **Images API**：调用 `/v1/images/generations` 和 `/v1/images/edits`，模型需要填写 GPT Image 模型，例如 `gpt-image-2`。
 - **Responses API**：调用 `/v1/responses` 并使用 `image_generation` 工具，模型需要填写支持该工具的文本模型，例如 `gpt-5.5`。
 - **API 代理**：开启后，浏览器会请求同源的 `/api-proxy/` 路径，再由当前后端转发到真实 API，用于绕开浏览器 CORS 限制。代理目标由部署端配置决定，例如 Docker 中的 `API_URL` 或本地开发的 `dev-proxy.config.json`。
-- **Codex CLI 模式**：如果你在使用源于 Codex CLI 的 API，可以在 `API URL` 右侧开启该模式。开启后应用不会向任何接口发送 `quality` 参数，界面中的质量选项也会固定为 `auto`；同时会在提示词文本开头加入简短的不改写要求，避免模型重写提示词，偏离原意。
+- **Codex CLI 模式**：如果你在使用源于 Codex CLI 的 API，可以在设置中开启该模式。开启后应用不会向任何接口发送 `quality` 参数，界面中的质量选项也会固定为 `auto`；同时会在提示词文本开头加入简短的不改写要求，避免模型重写提示词，偏离原意。
 - Codex CLI 模式下，Images API 的图片数量会通过并发发起多个单图请求实现；Responses API 原本也通过并发请求实现多图生成。
-- 如果检测到接口返回的提示词被改写，应用会提示是否为当前 `API URL + API Key` 组合开启 Codex CLI 模式；取消后，同一组合不再重复询问。
+- 如果检测到接口返回的提示词被改写，应用会提示是否为当前部署 API + API Key 组合开启 Codex CLI 模式；取消后，同一组合不再重复询问。
 
-应用支持通过 URL 查询参数快速填充配置，非常适合书签或分享给他人使用：
-- `?apiUrl=https://你的代理地址.com`
-- `?apiKey=sk-xxxx`
+应用仅支持通过 URL 查询参数快速切换非敏感配置：
 - `?apiMode=images` 或 `?apiMode=responses`，未传时默认使用 `images`
 - `?codexCli=true` 或 `?codexCli=false`，未传时默认关闭，仅 `true` 会开启 Codex CLI 模式
 
-例如：
-- 接入 New API 聊天应用：
-  ```
-  https://gpt-image-playground.cooksleep.dev?apiUrl={address}&apiKey={key}
-  ```
-
-  ```
-  https://cooksleep.github.io/gpt_image_playground?apiUrl={address}&apiKey={key}
-  ```
+出于安全考虑，`apiUrl` 和 `apiKey` 查询参数不再写入配置；API Key 只保存在当前浏览器中，导出数据时也会自动移除。
 
 ---
 

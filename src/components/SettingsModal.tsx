@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { normalizeBaseUrl } from '../lib/api'
 import { isApiProxyAvailable, readClientDevProxyConfig } from '../lib/devProxy'
 import { useStore, exportData, importData, clearAllData } from '../store'
 import { DEFAULT_IMAGES_MODEL, DEFAULT_RESPONSES_MODEL, DEFAULT_SETTINGS, type AppSettings } from '../types'
@@ -17,7 +16,6 @@ export default function SettingsModal() {
   const [timeoutInput, setTimeoutInput] = useState(String(settings.timeout))
   const [showApiKey, setShowApiKey] = useState(false)
   const apiProxyAvailable = isApiProxyAvailable(readClientDevProxyConfig())
-  const apiProxyEnabled = apiProxyAvailable && draft.apiProxy
 
   const getDefaultModelForMode = (apiMode: AppSettings['apiMode']) =>
     apiMode === 'responses' ? DEFAULT_RESPONSES_MODEL : DEFAULT_IMAGES_MODEL
@@ -35,7 +33,7 @@ export default function SettingsModal() {
     const normalizedDraft = {
       ...nextDraft,
       apiMode,
-      baseUrl: normalizeBaseUrl(nextDraft.baseUrl.trim() || DEFAULT_SETTINGS.baseUrl),
+      baseUrl: DEFAULT_SETTINGS.baseUrl,
       apiKey: nextDraft.apiKey,
       apiProxy: apiProxyAvailable ? nextDraft.apiProxy : false,
       model: nextDraft.model.trim() || defaultModel,
@@ -115,43 +113,38 @@ export default function SettingsModal() {
               API 配置
             </h4>
             <div className="space-y-4">
-              <label className="block">
+              <div className="rounded-2xl border border-gray-200/70 bg-gray-50/70 px-3 py-3 text-sm dark:border-white/[0.08] dark:bg-white/[0.03]">
+                <div className="mb-1 flex items-center justify-between gap-3">
+                  <span className="block text-xs font-medium text-gray-500 dark:text-gray-400">API URL</span>
+                  <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-600 dark:bg-blue-500/10 dark:text-blue-300">Vercel Env</span>
+                </div>
+                <p className="text-[11px] leading-5 text-gray-500 dark:text-gray-400">
+                  API URL 由部署环境变量 <code className="rounded bg-white px-1 py-0.5 dark:bg-white/[0.06]">VITE_DEFAULT_API_URL</code> 控制，前端设置中不再显示或允许修改。
+                </p>
+              </div>
+
+              <div className="block">
                 <div className="mb-1 flex items-center justify-between">
-                  <span className="block text-xs text-gray-500 dark:text-gray-400">API URL</span>
-                  <div
-                    onClick={(e) => {
-                      e.preventDefault()
+                  <span className="block text-xs text-gray-500 dark:text-gray-400">Codex CLI</span>
+                  <button
+                    type="button"
+                    onClick={() => {
                       const nextDraft = { ...draft, codexCli: !draft.codexCli }
                       setDraft(nextDraft)
                       commitSettings(nextDraft)
                     }}
-                    className="flex cursor-pointer items-center gap-1.5"
+                    className={`relative inline-flex h-3.5 w-6 items-center rounded-full transition-colors ${draft.codexCli ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'}`}
                     role="switch"
                     aria-checked={draft.codexCli}
+                    aria-label="Codex CLI"
                   >
-                    <span className={`text-[10px] transition-colors ${draft.codexCli ? 'text-blue-500 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500'}`}>Codex CLI</span>
-                    <span className={`relative inline-flex h-3.5 w-6 items-center rounded-full transition-colors ${draft.codexCli ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
-                      <span className={`inline-block h-2.5 w-2.5 transform rounded-full bg-white shadow transition-transform ${draft.codexCli ? 'translate-x-[11px]' : 'translate-x-[2px]'}`} />
-                    </span>
-                  </div>
+                    <span className={`inline-block h-2.5 w-2.5 transform rounded-full bg-white shadow transition-transform ${draft.codexCli ? 'translate-x-[11px]' : 'translate-x-[2px]'}`} />
+                  </button>
                 </div>
-                <input
-                  value={draft.baseUrl}
-                  onChange={(e) => setDraft((prev) => ({ ...prev, baseUrl: e.target.value }))}
-                  onBlur={(e) => commitSettings({ ...draft, baseUrl: e.target.value })}
-                  type="text"
-                  disabled={apiProxyEnabled}
-                  placeholder={DEFAULT_SETTINGS.baseUrl}
-                  className={`w-full rounded-xl border border-gray-200/70 bg-white/60 px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-300 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-gray-200 dark:focus:border-blue-500/50 ${apiProxyEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                />
-                <div data-selectable-text className="mt-1 min-h-[22px] flex items-center text-[10px] text-gray-400 dark:text-gray-500">
-                  {apiProxyEnabled ? (
-                    <span className="text-yellow-600 dark:text-yellow-500">已开启代理，实际请求目标由部署端决定，此处设置被忽略。</span>
-                  ) : (
-                    <span>支持通过查询参数覆盖：<code className="bg-gray-100 dark:bg-white/[0.06] px-1 py-0.5 rounded">?apiUrl=</code>，<code className="bg-gray-100 dark:bg-white/[0.06] px-1 py-0.5 rounded">codexCli=true</code></span>
-                  )}
+                <div data-selectable-text className="text-[10px] text-gray-400 dark:text-gray-500">
+                  开启后不会发送 quality 参数，并会在提示词开头加入不改写要求，适合 Codex CLI 兼容接口。
                 </div>
-              </label>
+              </div>
 
               {apiProxyAvailable && (
                 <div className="block">
@@ -173,7 +166,7 @@ export default function SettingsModal() {
                     </button>
                   </div>
                   <div data-selectable-text className="text-[10px] text-gray-400 dark:text-gray-500">
-                    由当前部署提供同源代理，用于解决浏览器跨域限制；开启后 API URL 设置会被忽略。
+                    由当前部署提供同源代理，用于解决浏览器跨域限制；开启后请求目标由部署端决定。
                   </div>
                 </div>
               )}
@@ -211,7 +204,7 @@ export default function SettingsModal() {
                   </button>
                 </div>
                 <div data-selectable-text className="mt-1 text-[10px] text-gray-400 dark:text-gray-500">
-                  支持通过查询参数覆盖：<code className="bg-gray-100 dark:bg-white/[0.06] px-1 py-0.5 rounded">?apiKey=</code>
+                  API Key 仅保存在当前浏览器；导出数据时会自动移除，URL 参数也不会再写入。
                 </div>
               </div>
 

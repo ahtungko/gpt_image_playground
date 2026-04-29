@@ -138,6 +138,7 @@ export const useStore = create<AppState>()(
         settings: {
           ...st.settings,
           ...s,
+          baseUrl: DEFAULT_SETTINGS.baseUrl,
           apiMode:
             s.apiMode === 'images' || s.apiMode === 'responses'
               ? s.apiMode
@@ -269,10 +270,32 @@ export const useStore = create<AppState>()(
     {
       name: 'gpt-image-playground',
       partialize: (state) => ({
-        settings: state.settings,
+        settings: {
+          ...state.settings,
+          baseUrl: '',
+        },
         params: state.params,
         dismissedCodexCliPrompts: state.dismissedCodexCliPrompts,
       }),
+      merge: (persisted, current) => {
+        const persistedState = persisted as Partial<AppState> | undefined
+        const persistedSettings = (persistedState?.settings ?? {}) as Partial<AppSettings>
+        return {
+          ...current,
+          ...persistedState,
+          settings: {
+            ...current.settings,
+            ...persistedSettings,
+            baseUrl: DEFAULT_SETTINGS.baseUrl,
+            apiMode:
+              persistedSettings.apiMode === 'images' || persistedSettings.apiMode === 'responses'
+                ? persistedSettings.apiMode
+                : DEFAULT_SETTINGS.apiMode,
+            codexCli: persistedSettings.codexCli ?? DEFAULT_SETTINGS.codexCli,
+            apiProxy: persistedSettings.apiProxy ?? DEFAULT_SETTINGS.apiProxy,
+          },
+        }
+      },
     },
   ),
 )
@@ -286,6 +309,14 @@ function genId(): string {
 
 export function getCodexCliPromptKey(settings: AppSettings): string {
   return `${settings.baseUrl}\n${settings.apiKey}`
+}
+
+function exportableSettings(settings: AppSettings): AppSettings {
+  return {
+    ...settings,
+    baseUrl: '',
+    apiKey: '',
+  }
 }
 
 export function showCodexCliPrompt(force = false, reason = '接口返回的提示词已被改写') {
@@ -759,7 +790,7 @@ export async function exportData() {
     const manifest: ExportData = {
       version: 2,
       exportedAt: new Date(exportedAt).toISOString(),
-      settings,
+      settings: exportableSettings(settings),
       tasks,
       imageFiles,
     }
@@ -811,7 +842,12 @@ export async function importData(file: File) {
     }
 
     if (data.settings) {
-      useStore.getState().setSettings(data.settings)
+      const currentSettings = useStore.getState().settings
+      useStore.getState().setSettings({
+        ...data.settings,
+        baseUrl: DEFAULT_SETTINGS.baseUrl,
+        apiKey: currentSettings.apiKey,
+      })
     }
 
     const tasks = await getAllTasks()
