@@ -25,9 +25,9 @@ export async function copyBlobToClipboard(blob: Blob) {
   ])
 }
 
-export function getClipboardFailureMessage(fallback: string, err: unknown) {
+export function getClipboardFailureMessage(fallback: string, err: unknown, embeddedPermissionMessage = 'Copy failed: embedded page has not granted clipboard permission') {
   if (isEmbeddedPage() && isClipboardPermissionError(err)) {
-    return '复制失败：内嵌页面未授予剪贴板权限'
+    return embeddedPermissionMessage
   }
 
   return fallback

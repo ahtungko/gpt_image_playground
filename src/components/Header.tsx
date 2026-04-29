@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useStore } from '../store'
+import { useI18n } from '../hooks/useI18n'
 import HelpModal from './HelpModal'
 
 export default function Header() {
   const setShowSettings = useStore((s) => s.setShowSettings)
+  const { t } = useI18n()
   const [showHelp, setShowHelp] = useState(false)
 
   return (
@@ -18,7 +20,7 @@ export default function Header() {
           <button
             onClick={() => setShowHelp(true)}
             className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors"
-            title="Guide"
+            title={t('header.guide')}
           >
             <svg
               className="w-5 h-5 text-gray-600 dark:text-gray-400"
@@ -37,7 +39,7 @@ export default function Header() {
           <button
             onClick={() => setShowSettings(true)}
             className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors"
-            title="Settings"
+            title={t('header.settings')}
           >
             <svg
               className="w-5 h-5 text-gray-600 dark:text-gray-400"

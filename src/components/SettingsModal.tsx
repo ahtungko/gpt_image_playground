@@ -3,9 +3,12 @@ import { isApiProxyAvailable, readClientDevProxyConfig } from '../lib/devProxy'
 import { useStore, exportData, importData, clearAllData } from '../store'
 import { DEFAULT_IMAGES_MODEL, DEFAULT_RESPONSES_MODEL, DEFAULT_SETTINGS, type AppSettings } from '../types'
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape'
+import { useI18n } from '../hooks/useI18n'
+import { LANGUAGE_OPTIONS } from '../lib/i18n'
 import Select from './Select'
 
 export default function SettingsModal() {
+  const { t } = useI18n()
   const showSettings = useStore((s) => s.showSettings)
   const setShowSettings = useStore((s) => s.setShowSettings)
   const settings = useStore((s) => s.settings)
@@ -38,6 +41,7 @@ export default function SettingsModal() {
       apiProxy: apiProxyAvailable ? nextDraft.apiProxy : false,
       model: nextDraft.model.trim() || defaultModel,
       timeout: Number(nextDraft.timeout) || DEFAULT_SETTINGS.timeout,
+      language: nextDraft.language ?? DEFAULT_SETTINGS.language,
     }
     setDraft(normalizedDraft)
     setSettings(normalizedDraft)
@@ -88,14 +92,14 @@ export default function SettingsModal() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-            设置
+            {t('settings.title')}
           </h3>
           <div className="flex items-center gap-3">
             <span className="text-xs text-gray-400 dark:text-gray-500 font-mono select-none">v{__APP_VERSION__}</span>
             <button
               onClick={handleClose}
               className="rounded-full p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/[0.06] dark:hover:text-gray-200"
-              aria-label="关闭"
+              aria-label={t('common.close')}
             >
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -108,18 +112,40 @@ export default function SettingsModal() {
           <section>
             <h4 className="mb-4 text-sm font-medium text-gray-800 dark:text-gray-200 flex items-center gap-1.5">
               <svg className="w-4 h-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m8.66-10h-1M4.34 12h-1m15.07 6.36-.71-.71M6.34 6.34l-.71-.71m12.02 0-.71.71M6.34 17.66l-.71.71M12 7a5 5 0 100 10 5 5 0 000-10z" />
+              </svg>
+              {t('settings.ui')}
+            </h4>
+            <label className="block">
+              <span className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('settings.language')}</span>
+              <Select
+                value={draft.language}
+                onChange={(value) => {
+                  const nextDraft = { ...draft, language: value as AppSettings['language'] }
+                  setDraft(nextDraft)
+                  commitSettings(nextDraft)
+                }}
+                options={LANGUAGE_OPTIONS}
+                className="w-full rounded-xl border border-gray-200/70 bg-white/60 px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-300 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-gray-200 dark:focus:border-blue-500/50"
+              />
+            </label>
+          </section>
+
+          <section className="pt-6 border-t border-gray-100 dark:border-white/[0.08]">
+            <h4 className="mb-4 text-sm font-medium text-gray-800 dark:text-gray-200 flex items-center gap-1.5">
+              <svg className="w-4 h-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
               </svg>
-              API 配置
+              {t('settings.apiConfig')}
             </h4>
             <div className="space-y-4">
               <div className="rounded-2xl border border-gray-200/70 bg-gray-50/70 px-3 py-3 text-sm dark:border-white/[0.08] dark:bg-white/[0.03]">
                 <div className="mb-1 flex items-center justify-between gap-3">
                   <span className="block text-xs font-medium text-gray-500 dark:text-gray-400">API URL</span>
-                  <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-600 dark:bg-blue-500/10 dark:text-blue-300">Vercel Env</span>
+                  <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-600 dark:bg-blue-500/10 dark:text-blue-300">{t('settings.apiUrlEnvBadge')}</span>
                 </div>
                 <p className="text-[11px] leading-5 text-gray-500 dark:text-gray-400">
-                  API URL 由部署环境变量 <code className="rounded bg-white px-1 py-0.5 dark:bg-white/[0.06]">VITE_DEFAULT_API_URL</code> 控制，前端设置中不再显示或允许修改。
+                  {t('settings.apiUrlEnvDesc', { env: 'VITE_DEFAULT_API_URL' })}
                 </p>
               </div>
 
@@ -142,14 +168,14 @@ export default function SettingsModal() {
                   </button>
                 </div>
                 <div data-selectable-text className="text-[10px] text-gray-400 dark:text-gray-500">
-                  开启后不会发送 quality 参数，并会在提示词开头加入不改写要求，适合 Codex CLI 兼容接口。
+                  {t('settings.codexCliDesc')}
                 </div>
               </div>
 
               {apiProxyAvailable && (
                 <div className="block">
                   <div className="mb-1 flex items-center justify-between">
-                    <span className="block text-xs text-gray-500 dark:text-gray-400">API 代理</span>
+                    <span className="block text-xs text-gray-500 dark:text-gray-400">{t('settings.apiProxy')}</span>
                     <button
                       type="button"
                       onClick={() => {
@@ -160,13 +186,13 @@ export default function SettingsModal() {
                       className={`relative inline-flex h-3.5 w-6 items-center rounded-full transition-colors ${draft.apiProxy ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'}`}
                       role="switch"
                       aria-checked={draft.apiProxy}
-                      aria-label="API 代理"
+                      aria-label={t('settings.apiProxy')}
                     >
                       <span className={`inline-block h-2.5 w-2.5 transform rounded-full bg-white shadow transition-transform ${draft.apiProxy ? 'translate-x-[11px]' : 'translate-x-[2px]'}`} />
                     </button>
                   </div>
                   <div data-selectable-text className="text-[10px] text-gray-400 dark:text-gray-500">
-                    由当前部署提供同源代理，用于解决浏览器跨域限制；开启后请求目标由部署端决定。
+                    {t('settings.apiProxyDesc')}
                   </div>
                 </div>
               )}
@@ -204,12 +230,12 @@ export default function SettingsModal() {
                   </button>
                 </div>
                 <div data-selectable-text className="mt-1 text-[10px] text-gray-400 dark:text-gray-500">
-                  API Key 仅保存在当前浏览器；导出数据时会自动移除，URL 参数也不会再写入。
+                  {t('settings.apiKeyDesc')}
                 </div>
               </div>
 
               <label className="block">
-                <span className="block text-xs text-gray-500 dark:text-gray-400 mb-1">API 接口</span>
+                <span className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('settings.apiMode')}</span>
                 <Select
                   value={draft.apiMode ?? DEFAULT_SETTINGS.apiMode}
                   onChange={(value) => {
@@ -229,13 +255,13 @@ export default function SettingsModal() {
                   className="w-full rounded-xl border border-gray-200/70 bg-white/60 px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-300 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-gray-200 dark:focus:border-blue-500/50"
                 />
                 <div data-selectable-text className="mt-1 text-[10px] text-gray-400 dark:text-gray-500">
-                  支持通过查询参数覆盖：<code className="rounded bg-gray-100 px-1 py-0.5 dark:bg-white/[0.06]">apiMode=images</code> 或 <code className="rounded bg-gray-100 px-1 py-0.5 dark:bg-white/[0.06]">apiMode=responses</code>。
+                  {t('settings.apiModeQueryDesc', { images: 'apiMode=images', responses: 'apiMode=responses' })}
                 </div>
               </label>
 
               <label className="block">
                 <span className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-                  模型 ID
+                  {t('settings.modelId')}
                 </span>
                 <input
                   value={draft.model}
@@ -247,15 +273,15 @@ export default function SettingsModal() {
                 />
                 <div data-selectable-text className="mt-1 text-[10px] text-gray-400 dark:text-gray-500">
                   {(draft.apiMode ?? DEFAULT_SETTINGS.apiMode) === 'responses' ? (
-                    <>Responses API 需要使用支持 <code className="rounded bg-gray-100 px-1 py-0.5 dark:bg-white/[0.06]">image_generation</code> 工具的文本模型，例如 <code className="rounded bg-gray-100 px-1 py-0.5 dark:bg-white/[0.06]">{DEFAULT_RESPONSES_MODEL}</code>。</>
+                    <>{t('settings.responsesModelHint', { tool: 'image_generation', model: DEFAULT_RESPONSES_MODEL })}</>
                   ) : (
-                    <>Images API 需要使用 GPT Image 模型，例如 <code className="rounded bg-gray-100 px-1 py-0.5 dark:bg-white/[0.06]">{DEFAULT_IMAGES_MODEL}</code>。</>
+                    <>{t('settings.imagesModelHint', { model: DEFAULT_IMAGES_MODEL })}</>
                   )}
                 </div>
               </label>
 
               <label className="block">
-                <span className="block text-xs text-gray-500 dark:text-gray-400 mb-1">请求超时 (秒)</span>
+                <span className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('settings.timeoutSeconds')}</span>
                 <input
                   value={timeoutInput}
                   onChange={(e) => setTimeoutInput(e.target.value)}
@@ -274,7 +300,7 @@ export default function SettingsModal() {
               <svg className="w-4 h-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
               </svg>
-              数据管理
+              {t('settings.dataManagement')}
             </h4>
             <div className="space-y-3">
               <div className="flex gap-2">
@@ -285,7 +311,7 @@ export default function SettingsModal() {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
-                  导出
+                  {t('common.export')}
                 </button>
                 <button
                   onClick={() => importInputRef.current?.click()}
@@ -294,7 +320,7 @@ export default function SettingsModal() {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                   </svg>
-                  导入
+                  {t('common.import')}
                 </button>
                 <input
                   ref={importInputRef}
@@ -307,14 +333,15 @@ export default function SettingsModal() {
               <button
                 onClick={() =>
                   setConfirmDialog({
-                    title: '清空所有数据',
-                    message: '确定要清空所有任务记录和图片数据吗？此操作不可恢复。',
+                    title: t('settings.clearAllDataTitle'),
+                    message: t('settings.clearAllDataMessage'),
+                    tone: 'danger',
                     action: () => clearAllData(),
                   })
                 }
                 className="w-full rounded-xl border border-red-200/80 bg-red-50/50 px-4 py-2.5 text-sm text-red-500 transition hover:bg-red-100/80 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20"
               >
-                清空所有数据
+                {t('settings.clearAllData')}
               </button>
             </div>
           </section>

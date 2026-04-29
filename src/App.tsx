@@ -16,6 +16,7 @@ import ImageContextMenu from './components/ImageContextMenu'
 
 export default function App() {
   const setSettings = useStore((s) => s.setSettings)
+  const language = useStore((s) => s.settings.language)
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search)
@@ -57,6 +58,10 @@ export default function App() {
     document.addEventListener('dragstart', preventPageImageDrag)
     return () => document.removeEventListener('dragstart', preventPageImageDrag)
   }, [])
+
+  useEffect(() => {
+    document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en'
+  }, [language])
 
   return (
     <>

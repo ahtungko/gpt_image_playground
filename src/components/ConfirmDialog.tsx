@@ -1,9 +1,11 @@
 import { useStore } from '../store'
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape'
+import { useI18n } from '../hooks/useI18n'
 
 export default function ConfirmDialog() {
   const confirmDialog = useStore((s) => s.confirmDialog)
   const setConfirmDialog = useStore((s) => s.setConfirmDialog)
+  const { t } = useI18n()
 
   const handleClose = () => {
     setConfirmDialog(null)
@@ -17,15 +19,14 @@ export default function ConfirmDialog() {
   useCloseOnEscape(Boolean(confirmDialog), handleClose)
 
   if (!confirmDialog) return null
-  const isDestructive = confirmDialog.title.includes('删除') || confirmDialog.title.includes('清空')
-  const confirmTone = confirmDialog.tone ?? (isDestructive ? 'danger' : undefined)
+  const confirmTone = confirmDialog.tone
   const confirmClassName =
     confirmTone === 'warning'
       ? 'bg-orange-500 hover:bg-orange-600'
       : confirmTone === 'danger'
       ? 'bg-red-500 hover:bg-red-600'
       : 'bg-blue-500 hover:bg-blue-600'
-  const confirmText = confirmDialog.confirmText ?? (isDestructive ? '确认删除' : '确认')
+  const confirmText = confirmDialog.confirmText ?? (confirmTone === 'danger' ? t('common.confirmDelete') : t('common.confirm'))
 
   return (
     <div
@@ -49,7 +50,7 @@ export default function ConfirmDialog() {
             onClick={handleCancel}
             className="flex-1 py-2 rounded-lg border border-gray-200 dark:border-white/[0.08] text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/[0.06] transition"
           >
-            取消
+            {t('common.cancel')}
           </button>
           <button
             onClick={() => {

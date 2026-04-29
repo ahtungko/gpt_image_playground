@@ -1,3 +1,5 @@
+import { getDefaultLocale, type Locale } from './lib/i18n'
+
 // ===== 设置 =====
 
 export type ApiMode = 'images' | 'responses'
@@ -10,6 +12,7 @@ export interface AppSettings {
   apiMode: ApiMode
   codexCli: boolean
   apiProxy: boolean
+  language: Locale
 }
 
 const DEFAULT_BASE_URL = import.meta.env.VITE_DEFAULT_API_URL?.trim() || 'https://api.openai.com/v1'
@@ -24,6 +27,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   apiMode: 'images',
   codexCli: false,
   apiProxy: false,
+  language: getDefaultLocale(),
 }
 
 // ===== 任务参数 =====

@@ -4,6 +4,7 @@ import { useStore, submitTask, addImageFromFile, updateTaskInStore, removeMultip
 import { DEFAULT_PARAMS } from '../types'
 import { normalizeImageSize } from '../lib/size'
 import { createMaskPreviewDataUrl } from '../lib/canvasImage'
+import { useI18n } from '../hooks/useI18n'
 import Select from './Select'
 import SizePickerModal from './SizePickerModal'
 import ViewportTooltip from './ViewportTooltip'
@@ -31,6 +32,7 @@ function useIsMobile() {
 }
 
 export default function InputBar() {
+  const { t } = useI18n()
   const prompt = useStore((s) => s.prompt)
   const setPrompt = useStore((s) => s.setPrompt)
   const inputImages = useStore((s) => s.inputImages)
@@ -80,11 +82,11 @@ export default function InputBar() {
     const allFavorite = selectedTasks.length > 0 && selectedTasks.every((t) => t.isFavorite)
     const newFavoriteState = !allFavorite
     setConfirmDialog({
-      title: newFavoriteState ? '批量收藏' : '批量取消收藏',
+      title: newFavoriteState ? t('input.batchFavoriteTitle') : t('input.batchUnfavoriteTitle'),
       message: newFavoriteState
-        ? `确定要收藏选中的 ${selectedTaskIds.length} 条记录吗？`
-        : `确定要取消收藏选中的 ${selectedTaskIds.length} 条记录吗？`,
-      confirmText: newFavoriteState ? '确认收藏' : '确认取消',
+        ? t('input.batchFavoriteMessage', { count: selectedTaskIds.length })
+        : t('input.batchUnfavoriteMessage', { count: selectedTaskIds.length }),
+      confirmText: newFavoriteState ? t('input.confirmFavorite') : t('input.confirmUnfavorite'),
       action: () => {
         selectedTaskIds.forEach((id) => {
           updateTaskInStore(id, { isFavorite: newFavoriteState })
@@ -92,17 +94,18 @@ export default function InputBar() {
         clearSelection()
       },
     })
-  }, [tasks, selectedTaskIds, clearSelection, setConfirmDialog])
+  }, [tasks, selectedTaskIds, clearSelection, setConfirmDialog, t])
 
   const handleDeleteSelected = useCallback(() => {
     setConfirmDialog({
-      title: '批量删除',
-      message: `确定要删除选中的 ${selectedTaskIds.length} 条记录吗？`,
+      title: t('input.batchDeleteTitle'),
+      message: t('input.batchDeleteMessage', { count: selectedTaskIds.length }),
+      tone: 'danger',
       action: () => {
         removeMultipleTasks(selectedTaskIds)
       },
     })
-  }, [selectedTaskIds, setConfirmDialog])
+  }, [selectedTaskIds, setConfirmDialog, t])
   const maskDraft = useStore((s) => s.maskDraft)
   const clearMaskDraft = useStore((s) => s.clearMaskDraft)
   const setMaskEditorImageId = useStore((s) => s.setMaskEditorImageId)
@@ -333,7 +336,7 @@ export default function InputBar() {
       const currentCount = useStore.getState().inputImages.length
       if (currentCount >= API_MAX_IMAGES) {
         useStore.getState().showToast(
-          `参考图数量已达上限（${API_MAX_IMAGES} 张），无法继续添加`,
+          t('input.referenceLimit', { max: API_MAX_IMAGES }),
           'error',
         )
         return
@@ -350,13 +353,13 @@ export default function InputBar() {
 
       if (discarded > 0) {
         useStore.getState().showToast(
-          `已达上限 ${API_MAX_IMAGES} 张，${discarded} 张图片被丢弃`,
+          t('input.filesDiscarded', { max: API_MAX_IMAGES, count: discarded }),
           'error',
         )
       }
     } catch (err) {
       useStore.getState().showToast(
-        `图片添加失败：${err instanceof Error ? err.message : String(err)}`,
+        t('input.imageAddFailed', { error: err instanceof Error ? err.message : String(err) }),
         'error',
       )
     }
@@ -598,9 +601,9 @@ export default function InputBar() {
     const isMaskTarget = maskDraft?.targetImageId === img.id
     const canEdit = !maskTargetImage || isMaskTarget
     const imageHintText = isMaskTarget
-      ? '遮罩图必须为第一张图'
+      ? t('input.maskMustBeFirst')
       : maskTargetImage
-        ? '只能有一张遮罩图'
+        ? t('input.onlyOneMask')
         : ''
     const displaySrc = isMaskTarget && maskPreviewUrl ? maskPreviewUrl : img.dataUrl
     const isImageDragging = imageDragIndex === idx
@@ -736,7 +739,7 @@ export default function InputBar() {
             }
             if (isMobile && maskTargetImage && !maskConflictNoticeShownRef.current) {
               maskConflictNoticeShownRef.current = true
-              showToast('只能有一张遮罩图', 'info')
+              showToast(t('input.onlyOneMask'), 'info')
             }
             setLightboxImageId(img.id, inputImages.map((i) => i.id))
           }}
@@ -758,7 +761,7 @@ export default function InputBar() {
                 e.stopPropagation()
                 setMaskEditorImageId(img.id)
               }}
-              title={isMaskTarget ? "编辑遮罩" : "添加遮罩"}
+              title={isMaskTarget ? t('input.editMask') : t('input.addMask')}
             >
               <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -787,20 +790,21 @@ export default function InputBar() {
     <button
       onClick={() =>
         setConfirmDialog({
-          title: maskTargetImage ? '清空全部输入图' : '清空参考图',
+          title: maskTargetImage ? t('input.clearAllInputTitle') : t('input.clearReferenceTitle'),
           message: maskTargetImage
-            ? `确定要清空遮罩主图、${referenceImages.length} 张参考图和当前遮罩吗？`
-            : `确定要清空全部 ${inputImages.length} 张参考图吗？`,
+            ? t('input.clearMaskMessage', { count: referenceImages.length })
+            : t('input.clearReferencesMessage', { count: inputImages.length }),
+          tone: 'danger',
           action: () => clearInputImages(),
         })
       }
       className="w-[52px] h-[52px] rounded-xl border border-dashed border-gray-300 dark:border-white/[0.08] flex flex-col items-center justify-center gap-0.5 text-gray-400 dark:text-gray-500 hover:text-red-500 hover:border-red-300 hover:bg-red-50/50 dark:hover:bg-red-950/30 transition-all cursor-pointer flex-shrink-0"
-      title={maskTargetImage ? '清空遮罩主图、参考图和遮罩' : '清空全部参考图'}
+      title={maskTargetImage ? t('input.clearMaskTitle') : t('input.clearAllReferencesTitle')}
     >
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
       </svg>
-      <span className="text-[8px] leading-none">{maskTargetImage ? '清空全部' : '清空'}</span>
+      <span className="text-[8px] leading-none">{maskTargetImage ? t('common.clearAll') : t('common.clear')}</span>
     </button>
   )
 
@@ -827,12 +831,12 @@ export default function InputBar() {
   const renderParams = (cols: string) => (
     <div className={`grid ${cols} gap-2 text-xs flex-1`}>
       <label className="flex flex-col gap-0.5">
-        <span className="text-gray-400 dark:text-gray-500 ml-1">尺寸</span>
+        <span className="text-gray-400 dark:text-gray-500 ml-1">{t('input.size')}</span>
         <button
           type="button"
           onClick={() => setShowSizePicker(true)}
           className="px-3 py-1.5 rounded-xl border border-gray-200/60 dark:border-white/[0.08] bg-white/50 dark:bg-white/[0.03] hover:bg-white dark:hover:bg-white/[0.06] focus:outline-none text-xs text-left transition-all duration-200 shadow-sm font-mono"
-          title="选择尺寸"
+          title={t('input.chooseSize')}
         >
           {normalizeImageSize(params.size) || DEFAULT_PARAMS.size}
         </button>
@@ -846,7 +850,7 @@ export default function InputBar() {
         onTouchCancel={hideQualityHint}
         onClick={showQualityHint}
       >
-        <span className="text-gray-400 dark:text-gray-500 ml-1">质量</span>
+        <span className="text-gray-400 dark:text-gray-500 ml-1">{t('input.quality')}</span>
         <Select
           value={settings.codexCli ? 'auto' : params.quality}
           onChange={(val) => {
@@ -865,11 +869,11 @@ export default function InputBar() {
         />
         <ButtonTooltip
           visible={settings.codexCli && qualityHintVisible}
-          text="Codex CLI 不支持质量参数"
+          text={t('input.codexQualityUnsupported')}
         />
       </label>
       <label className="flex flex-col gap-0.5">
-        <span className="text-gray-400 dark:text-gray-500 ml-1">格式</span>
+        <span className="text-gray-400 dark:text-gray-500 ml-1">{t('input.format')}</span>
         <Select
           value={params.output_format}
           onChange={(val) => setParams({ output_format: val as any })}
@@ -890,7 +894,7 @@ export default function InputBar() {
         onTouchCancel={hideCompressionHint}
         onClick={showCompressionHint}
       >
-        <span className="text-gray-400 dark:text-gray-500 ml-1">压缩率</span>
+        <span className="text-gray-400 dark:text-gray-500 ml-1">{t('input.compression')}</span>
         <input
           value={outputCompressionInput}
           onChange={(e) => setOutputCompressionInput(e.target.value)}
@@ -908,7 +912,7 @@ export default function InputBar() {
         />
         <ButtonTooltip
           visible={compressionHintVisible}
-          text="仅 JPEG 和 WebP 支持压缩率"
+          text={t('input.compressionUnsupported')}
         />
       </label>
       <label
@@ -920,7 +924,7 @@ export default function InputBar() {
         onTouchCancel={hideModerationHint}
         onClick={showModerationHint}
       >
-        <span className="text-gray-400 dark:text-gray-500 ml-1">审核</span>
+        <span className="text-gray-400 dark:text-gray-500 ml-1">{t('input.moderation')}</span>
         <Select
           value={settings.apiMode === 'responses' ? 'auto' : params.moderation}
           onChange={(val) => {
@@ -937,11 +941,11 @@ export default function InputBar() {
         />
         <ButtonTooltip
           visible={settings.apiMode === 'responses' && moderationHintVisible}
-          text="Responses API 不支持审核参数"
+          text={t('input.responsesModerationUnsupported')}
         />
       </label>
       <label className="flex flex-col gap-0.5">
-        <span className="text-gray-400 dark:text-gray-500 ml-1">数量</span>
+        <span className="text-gray-400 dark:text-gray-500 ml-1">{t('input.count')}</span>
         <input
           value={nInput}
           onChange={(e) => setNInput(e.target.value)}
@@ -977,13 +981,13 @@ export default function InputBar() {
             <div className="text-center">
               {atImageLimit ? (
                 <>
-                  <p className="text-lg font-semibold text-red-500">已达上限 {API_MAX_IMAGES} 张</p>
-                  <p className="text-sm text-gray-400 mt-1">请先移除部分参考图后再添加</p>
+                  <p className="text-lg font-semibold text-red-500">{t('input.limitReached', { max: API_MAX_IMAGES })}</p>
+                  <p className="text-sm text-gray-400 mt-1">{t('input.removeSomeReferences')}</p>
                 </>
               ) : (
                 <>
-                  <p className="text-lg font-semibold text-gray-700 dark:text-gray-200">释放以添加参考图</p>
-                  <p className="text-sm text-gray-400 mt-1">支持 JPG、PNG、WebP 等格式</p>
+                  <p className="text-lg font-semibold text-gray-700 dark:text-gray-200">{t('input.dropToAddReferences')}</p>
+                  <p className="text-sm text-gray-400 mt-1">{t('input.supportedFormats')}</p>
                 </>
               )}
             </div>
@@ -1006,7 +1010,7 @@ export default function InputBar() {
               <button
                 onClick={clearSelection}
                 className="p-2 text-gray-300 hover:text-white transition-colors"
-                title="取消选择"
+                title={t('input.cancelSelection')}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1016,7 +1020,7 @@ export default function InputBar() {
               <button
                 onClick={handleSelectAllToggle}
                 className="p-2 text-blue-400 hover:text-blue-300 transition-colors"
-                title={selectedTaskIds.length === filteredTasks.length && filteredTasks.length > 0 ? "取消全选" : "全选当前可见"}
+                title={selectedTaskIds.length === filteredTasks.length && filteredTasks.length > 0 ? t('input.cancelSelectAll') : t('input.selectAllVisible')}
               >
                 {selectedTaskIds.length === filteredTasks.length && filteredTasks.length > 0 ? (
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
@@ -1033,7 +1037,7 @@ export default function InputBar() {
               <button
                 onClick={handleToggleFavorite}
                 className="p-2 text-yellow-400 hover:text-yellow-300 transition-colors"
-                title="收藏/取消收藏"
+                title={t('input.favoriteToggle')}
               >
                 {selectedTaskIds.length > 0 && selectedTaskIds.every((id) => tasks.find((t) => t.id === id)?.isFavorite) ? (
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -1049,7 +1053,7 @@ export default function InputBar() {
               <button
                 onClick={handleDeleteSelected}
                 className="p-2 text-red-400 hover:text-red-300 transition-colors"
-                title="删除选中"
+                title={t('input.deleteSelected')}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1079,7 +1083,7 @@ export default function InputBar() {
                 </div>
                 {mobileCollapsed && (
                   <div className="text-xs text-gray-400 dark:text-gray-500 mb-2 ml-1">
-                    {maskDraft ? `1 张遮罩主图 · ${referenceImages.length} 张参考图` : `${inputImages.length} 张参考图`}
+                    {maskDraft ? t('input.maskReferenceCount', { count: referenceImages.length }) : t('input.referenceCount', { count: inputImages.length })}
                   </div>
                 )}
               </>
@@ -1095,7 +1099,7 @@ export default function InputBar() {
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={handleKeyDown}
             rows={1}
-            placeholder="描述你想生成的图片..."
+            placeholder={t('input.promptPlaceholder')}
             className="w-full px-4 py-3 rounded-2xl border border-gray-200/60 dark:border-white/[0.08] bg-white/50 dark:bg-white/[0.03] text-sm focus:outline-none leading-relaxed resize-none shadow-sm transition-[border-color,box-shadow] duration-200"
           />
 
@@ -1111,7 +1115,7 @@ export default function InputBar() {
                   onMouseEnter={() => setAttachHover(true)}
                   onMouseLeave={() => setAttachHover(false)}
                 >
-                  <ButtonTooltip visible={atImageLimit && attachHover} text={`参考图数量已达上限（${API_MAX_IMAGES} 张），无法继续添加`} />
+                  <ButtonTooltip visible={atImageLimit && attachHover} text={t('input.referenceLimit', { max: API_MAX_IMAGES })} />
                   <button
                     onClick={() => !atImageLimit && fileInputRef.current?.click()}
                     className={`p-2.5 rounded-xl transition-all shadow-sm ${
@@ -1119,7 +1123,7 @@ export default function InputBar() {
                         ? 'bg-gray-200 dark:bg-white/[0.04] text-gray-300 dark:text-gray-500 cursor-not-allowed'
                         : 'bg-gray-200 dark:bg-white/[0.06] hover:bg-gray-300 dark:hover:bg-white/[0.1] text-gray-500 dark:text-gray-300 hover:shadow'
                     }`}
-                    title={atImageLimit ? `已达上限 ${API_MAX_IMAGES} 张` : '添加参考图'}
+                    title={atImageLimit ? t('input.referenceLimitShort', { max: API_MAX_IMAGES }) : t('input.addReference')}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
@@ -1131,7 +1135,7 @@ export default function InputBar() {
                   onMouseEnter={() => setSubmitHover(true)}
                   onMouseLeave={() => setSubmitHover(false)}
                 >
-                  <ButtonTooltip visible={!settings.apiKey && submitHover} text="尚未完成 API 配置，请在右上角设置中进行" />
+                  <ButtonTooltip visible={!settings.apiKey && submitHover} text={t('input.apiConfigMissing')} />
                   <button
                     onClick={() => settings.apiKey ? submitTask() : setShowSettings(true)}
                     disabled={settings.apiKey ? !canSubmit : false}
@@ -1140,7 +1144,7 @@ export default function InputBar() {
                         ? 'bg-gray-300 dark:bg-white/[0.06] text-white cursor-pointer'
                         : 'bg-blue-500 text-white hover:bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-white/[0.04] disabled:opacity-50 disabled:cursor-not-allowed'
                     }`}
-                    title={settings.apiKey ? (maskDraft ? '遮罩编辑 (Ctrl+Enter)' : '生成 (Ctrl+Enter)') : '请先配置 API'}
+                    title={settings.apiKey ? (maskDraft ? t('input.maskEditShortcut') : t('input.generateShortcut')) : t('input.configureApiFirst')}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
@@ -1165,7 +1169,7 @@ export default function InputBar() {
                   onMouseEnter={() => setAttachHover(true)}
                   onMouseLeave={() => setAttachHover(false)}
                 >
-                  <ButtonTooltip visible={atImageLimit && attachHover} text={`参考图数量已达上限（${API_MAX_IMAGES} 张），无法继续添加`} />
+                  <ButtonTooltip visible={atImageLimit && attachHover} text={t('input.referenceLimit', { max: API_MAX_IMAGES })} />
                   <button
                     onClick={() => !atImageLimit && fileInputRef.current?.click()}
                     className={`p-2.5 rounded-xl transition-all shadow-sm flex-shrink-0 ${
@@ -1173,7 +1177,7 @@ export default function InputBar() {
                         ? 'bg-gray-200 dark:bg-white/[0.04] text-gray-300 dark:text-gray-500 cursor-not-allowed'
                         : 'bg-gray-200 dark:bg-white/[0.06] hover:bg-gray-300 dark:hover:bg-white/[0.1] text-gray-500 dark:text-gray-300'
                     }`}
-                    title={atImageLimit ? `已达上限 ${API_MAX_IMAGES} 张` : '添加参考图'}
+                    title={atImageLimit ? t('input.referenceLimitShort', { max: API_MAX_IMAGES }) : t('input.addReference')}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
@@ -1185,7 +1189,7 @@ export default function InputBar() {
                   onMouseEnter={() => setSubmitHover(true)}
                   onMouseLeave={() => setSubmitHover(false)}
                 >
-                  <ButtonTooltip visible={!settings.apiKey && submitHover} text="尚未完成 API 配置，请在右上角设置中进行" />
+                  <ButtonTooltip visible={!settings.apiKey && submitHover} text={t('input.apiConfigMissing')} />
                   <button
                     onClick={() => settings.apiKey ? submitTask() : setShowSettings(true)}
                     disabled={settings.apiKey ? !canSubmit : false}
@@ -1198,7 +1202,7 @@ export default function InputBar() {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                     </svg>
-                    {maskDraft ? '遮罩编辑' : '生成图像'}
+                    {maskDraft ? t('input.maskEdit') : t('input.generateImage')}
                   </button>
                 </div>
               </div>

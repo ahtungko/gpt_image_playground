@@ -44,12 +44,12 @@ function getDataUrlDecodedByteSize(dataUrl: string): number {
 
 function assertMaxBytes(label: string, bytes: number, maxBytes: number) {
   if (bytes > maxBytes) {
-    throw new Error(`${label}过大：${formatMiB(bytes)}，上限为 ${formatMiB(maxBytes)}`)
+    throw new Error(`${label} too large: ${formatMiB(bytes)}; limit is ${formatMiB(maxBytes)}`)
   }
 }
 
 function assertImageInputPayloadSize(bytes: number) {
-  assertMaxBytes('图像输入有效负载总大小', bytes, MAX_IMAGE_INPUT_PAYLOAD_BYTES)
+  assertMaxBytes('Total image input payload size', bytes, MAX_IMAGE_INPUT_PAYLOAD_BYTES)
 }
 
 function assertMaskEditFileSize(label: string, bytes: number) {
@@ -75,7 +75,7 @@ async function fetchImageUrlAsDataUrl(url: string, fallbackMime: string, signal:
   })
 
   if (!response.ok) {
-    throw new Error(`图片 URL 下载失败：HTTP ${response.status}`)
+    throw new Error(`Image URL download failed: HTTP ${response.status}`)
   }
 
   return blobToDataUrl(await response.blob(), fallbackMime)
@@ -180,7 +180,7 @@ function parseResponsesImageResults(payload: ResponsesApiResponse, fallbackMime:
 }> {
   const output = payload.output
   if (!Array.isArray(output) || !output.length) {
-    throw new Error('接口未返回图片数据')
+    throw new Error('API returned no image data')
   }
 
   const results: Array<{ image: string; actualParams?: Partial<TaskParams>; revisedPrompt?: string }> = []
@@ -199,7 +199,7 @@ function parseResponsesImageResults(payload: ResponsesApiResponse, fallbackMime:
   }
 
   if (!results.length) {
-    throw new Error('接口未返回可用图片数据')
+    throw new Error('API returned no usable image data')
   }
 
   return results
@@ -257,7 +257,7 @@ async function callImagesApiConcurrent(opts: CallApiOptions, n: number): Promise
   if (successfulResults.length === 0) {
     const firstError = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')
     if (firstError) throw firstError.reason
-    throw new Error('所有并发请求均失败')
+    throw new Error('All concurrent requests failed')
   }
 
   const images = successfulResults.flatMap((r) => r.images)
@@ -322,8 +322,8 @@ async function callImagesApiSingle(opts: CallApiOptions): Promise<CallApiResult>
 
       const maskBlob = opts.maskDataUrl ? await maskDataUrlToPngBlob(opts.maskDataUrl) : null
       if (opts.maskDataUrl) {
-        assertMaskEditFileSize('遮罩主图文件', imageBlobs[0]?.size ?? 0)
-        assertMaskEditFileSize('遮罩文件', maskBlob?.size ?? 0)
+        assertMaskEditFileSize('Mask target image file', imageBlobs[0]?.size ?? 0)
+        assertMaskEditFileSize('Mask file', maskBlob?.size ?? 0)
       }
       assertImageInputPayloadSize(
         imageBlobs.reduce((sum, blob) => sum + blob.size, 0) + (maskBlob?.size ?? 0),
@@ -385,7 +385,7 @@ async function callImagesApiSingle(opts: CallApiOptions): Promise<CallApiResult>
     const payload = await response.json() as ImageApiResponse
     const data = payload.data
     if (!Array.isArray(data) || !data.length) {
-      throw new Error('接口未返回图片数据')
+      throw new Error('API returned no image data')
     }
 
     const images: string[] = []
@@ -405,7 +405,7 @@ async function callImagesApiSingle(opts: CallApiOptions): Promise<CallApiResult>
     }
 
     if (!images.length) {
-      throw new Error('接口未返回可用图片数据')
+      throw new Error('API returned no usable image data')
     }
 
     const actualParams = mergeActualParams(
@@ -438,7 +438,7 @@ async function callResponsesImageApi(opts: CallApiOptions): Promise<CallApiResul
   if (successfulResults.length === 0) {
     const firstError = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')
     if (firstError) throw firstError.reason
-    throw new Error('所有并发请求均失败')
+    throw new Error('All concurrent requests failed')
   }
 
   const images = successfulResults.flatMap((r) => r.images)
@@ -467,8 +467,8 @@ async function callResponsesImageApiSingle(opts: CallApiOptions): Promise<CallAp
 
   try {
     if (opts.maskDataUrl) {
-      assertMaskEditFileSize('遮罩主图文件', getDataUrlDecodedByteSize(inputImageDataUrls[0] ?? ''))
-      assertMaskEditFileSize('遮罩文件', getDataUrlDecodedByteSize(opts.maskDataUrl))
+      assertMaskEditFileSize('Mask target image file', getDataUrlDecodedByteSize(inputImageDataUrls[0] ?? ''))
+      assertMaskEditFileSize('Mask file', getDataUrlDecodedByteSize(opts.maskDataUrl))
     }
     assertImageInputPayloadSize(
       inputImageDataUrls.reduce((sum, dataUrl) => sum + getDataUrlEncodedByteSize(dataUrl), 0) +
