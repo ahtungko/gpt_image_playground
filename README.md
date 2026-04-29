@@ -288,4 +288,4 @@ docker compose up -d
 
 ## 🔗 致谢
 
-[LINUX DO](https://linux.do)
+[LINUX DO](https://linux.do) 
