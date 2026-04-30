@@ -12,6 +12,7 @@ const MIME_MAP: Record<string, string> = {
 
 const MAX_MASK_EDIT_FILE_BYTES = 50 * 1024 * 1024
 const MAX_IMAGE_INPUT_PAYLOAD_BYTES = 512 * 1024 * 1024
+const PROMPT_REWRITE_GUARD_PREFIX = 'Use the following text as the complete prompt. Do not rewrite it:'
 
 export { normalizeBaseUrl } from './devProxy'
 
@@ -164,6 +165,10 @@ function createRequestHeaders(settings: AppSettings): Record<string, string> {
   }
 }
 
+function addPromptRewriteGuard(prompt: string): string {
+  return `${PROMPT_REWRITE_GUARD_PREFIX}\n${prompt}`
+}
+
 function createResponsesImageTool(
   params: TaskParams,
   isEdit: boolean,
@@ -195,7 +200,7 @@ function createResponsesImageTool(
 }
 
 function createResponsesInput(prompt: string, inputImageDataUrls: string[]): unknown {
-  const text = `Use the following text as the complete prompt. Do not rewrite it:\n${prompt}`
+  const text = addPromptRewriteGuard(prompt)
   if (!inputImageDataUrls.length) return text
 
   return [
