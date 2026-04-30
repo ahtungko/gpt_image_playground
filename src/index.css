@@ -23,7 +23,6 @@ body {
   padding: 0;
   -webkit-user-select: none;
   user-select: none;
-  -webkit-touch-callout: none;
 }
 
 input,
@@ -46,7 +45,12 @@ img {
   -webkit-user-drag: none;
   user-select: none;
   -webkit-user-select: none;
-  -webkit-touch-callout: none;
+}
+
+.saveable-image {
+  -webkit-touch-callout: default;
+  -webkit-user-select: auto;
+  user-select: auto;
 }
 
 body.drag-selecting,
