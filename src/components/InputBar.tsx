@@ -130,9 +130,6 @@ export default function InputBar() {
   const [mobileCollapsed, setMobileCollapsed] = useState(false)
   const [showSizePicker, setShowSizePicker] = useState(false)
   const [maskPreviewUrl, setMaskPreviewUrl] = useState('')
-  const [popularPromptLocale, setPopularPromptLocale] = useState<'en' | 'zh'>(() =>
-    locale === 'zh' ? 'zh' : 'en',
-  )
   const [imageDragIndex, setImageDragIndex] = useState<number | null>(null)
   const [imageDragOverIndex, setImageDragOverIndex] = useState<number | null>(null)
   const [touchDragPreview, setTouchDragPreview] = useState<{ src: string; x: number; y: number } | null>(null)
@@ -167,7 +164,7 @@ export default function InputBar() {
   const referenceImages = maskTargetImage
     ? inputImages.filter((img) => img.id !== maskTargetImage.id)
     : inputImages
-  const popularPrompts = POPULAR_PROMPTS[popularPromptLocale]
+  const popularPrompts = POPULAR_PROMPTS[locale]
 
   const applyPopularPrompt = useCallback(
     (nextPrompt: string) => {
@@ -182,10 +179,6 @@ export default function InputBar() {
       params.output_compression == null ? '' : String(params.output_compression),
     )
   }, [params.output_compression])
-
-  useEffect(() => {
-    setPopularPromptLocale(locale === 'zh' ? 'zh' : 'en')
-  }, [locale])
 
   useEffect(() => {
     const normalized = Math.max(1, Math.min(maxSelectableCount, Math.floor(Number(params.n) || DEFAULT_PARAMS.n)))
@@ -1129,45 +1122,18 @@ export default function InputBar() {
             className="w-full px-4 py-3 rounded-2xl border border-gray-200/60 dark:border-white/[0.08] bg-white/50 dark:bg-white/[0.03] text-sm focus:outline-none leading-relaxed resize-none shadow-sm transition-[border-color,box-shadow] duration-200"
           />
 
-          <div className="mt-3 rounded-2xl border border-gray-200/60 dark:border-white/[0.08] bg-white/40 dark:bg-white/[0.03] px-3 py-3">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                  {t('input.popularPrompts')}
-                </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">
-                  {t('input.popularPromptsHelp')}
-                </div>
-              </div>
-              <div className="inline-flex w-fit rounded-xl border border-gray-200/70 dark:border-white/[0.08] bg-white/70 dark:bg-white/[0.04] p-1">
-                {([
-                  ['en', t('input.popularPromptsEnglish')],
-                  ['zh', t('input.popularPromptsChinese')],
-                ] as const).map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setPopularPromptLocale(value)}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                      popularPromptLocale === value
-                        ? 'bg-blue-500 text-white shadow-sm'
-                        : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/[0.08]'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
+          <div className="mt-2">
+            <div className="mb-1.5 text-xs text-gray-500 dark:text-gray-400">
+              {t('input.popularPrompts')}
             </div>
-
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-gray-300/70 dark:scrollbar-thumb-white/[0.12] scrollbar-track-transparent">
               {popularPrompts.map((item) => (
                 <button
                   key={item.id}
                   type="button"
                   title={item.prompt}
                   onClick={() => applyPopularPrompt(item.prompt)}
-                  className="rounded-full border border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.04] px-3 py-2 text-left text-xs text-gray-700 transition-colors hover:border-blue-300 hover:bg-blue-50 dark:text-gray-200 dark:hover:border-blue-400/60 dark:hover:bg-blue-500/10"
+                  className="shrink-0 rounded-full border border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.04] px-3 py-1.5 text-left text-xs text-gray-700 transition-colors hover:border-blue-300 hover:bg-blue-50 dark:text-gray-200 dark:hover:border-blue-400/60 dark:hover:bg-blue-500/10"
                 >
                   {item.title}
                 </button>
