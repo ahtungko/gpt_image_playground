@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { isApiProxyAvailable, readClientDevProxyConfig } from '../lib/devProxy'
 import { fetchBackendKeyProfile } from '../lib/api'
 import { useStore, exportData, importData, clearAllData } from '../store'
+import { getAvailableTaskSlots, getRunningTaskSlots } from '../lib/keyLimits'
 import { DEFAULT_IMAGES_MODEL, DEFAULT_RESPONSES_MODEL, DEFAULT_SETTINGS, type AppSettings } from '../types'
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape'
 import { useI18n } from '../hooks/useI18n'
@@ -13,6 +14,7 @@ export default function SettingsModal() {
   const showSettings = useStore((s) => s.showSettings)
   const setShowSettings = useStore((s) => s.setShowSettings)
   const settings = useStore((s) => s.settings)
+  const tasks = useStore((s) => s.tasks)
   const setSettings = useStore((s) => s.setSettings)
   const setConfirmDialog = useStore((s) => s.setConfirmDialog)
   const importInputRef = useRef<HTMLInputElement>(null)
@@ -22,6 +24,9 @@ export default function SettingsModal() {
   const [profileLoading, setProfileLoading] = useState(false)
   const profileRequestIdRef = useRef(0)
   const apiProxyAvailable = isApiProxyAvailable(readClientDevProxyConfig())
+  const runningTaskCount = getRunningTaskSlots(tasks)
+  const availableTaskSlots = getAvailableTaskSlots(draft, tasks)
+  const formatLimitValue = (value: number | null | undefined) => value == null ? '∞' : String(value)
 
   const getDefaultModelForMode = (apiMode: AppSettings['apiMode']) =>
     apiMode === 'responses' ? DEFAULT_RESPONSES_MODEL : DEFAULT_IMAGES_MODEL
@@ -333,22 +338,44 @@ export default function SettingsModal() {
                   </div>
                 ) : null}
                 {draft.keyRole ? (
-                  <div className="mt-1 rounded-xl border border-gray-200/70 bg-gray-50/70 px-3 py-2 text-[10px] leading-5 text-gray-500 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-gray-400">
-                    <div>
-                      {t('settings.keyProfileSummary', {
-                        role: draft.keyRole,
-                        name: draft.keyName || '-',
-                      })}
+                  <div className="mt-2 rounded-2xl border border-gray-200/70 bg-gray-50/70 px-3 py-3 dark:border-white/[0.08] dark:bg-white/[0.03]">
+                    <div className="mb-2 text-[11px] font-medium text-gray-700 dark:text-gray-200">
+                      {t('settings.keyProfileTitle')}
                     </div>
-                    {draft.keyRole === 'user' ? (
-                      <div>
-                        {t('settings.keyProfileLimits', {
-                          generate: draft.keyGenerateRemaining == null ? '∞' : draft.keyGenerateRemaining,
-                          edit: draft.keyEditRemaining == null ? '∞' : draft.keyEditRemaining,
-                          max: draft.keyMaxRunningTasks == null ? '∞' : draft.keyMaxRunningTasks,
-                        })}
+                    <div className="grid grid-cols-2 gap-2 text-[10px] leading-5 text-gray-500 dark:text-gray-400">
+                      <div className="rounded-xl bg-white/70 px-2.5 py-2 dark:bg-black/10">
+                        <div className="text-gray-400 dark:text-gray-500">{t('settings.keyRoleLabel')}</div>
+                        <div className="font-medium text-gray-700 dark:text-gray-200">{draft.keyRole}</div>
                       </div>
-                    ) : null}
+                      <div className="rounded-xl bg-white/70 px-2.5 py-2 dark:bg-black/10">
+                        <div className="text-gray-400 dark:text-gray-500">{t('settings.keyNameLabel')}</div>
+                        <div className="truncate font-medium text-gray-700 dark:text-gray-200">{draft.keyName || '-'}</div>
+                      </div>
+                      <div className="rounded-xl bg-white/70 px-2.5 py-2 dark:bg-black/10">
+                        <div className="text-gray-400 dark:text-gray-500">{t('settings.generateQuotaLabel')}</div>
+                        <div className="font-medium text-gray-700 dark:text-gray-200">{formatLimitValue(draft.keyGenerateRemaining)}</div>
+                      </div>
+                      <div className="rounded-xl bg-white/70 px-2.5 py-2 dark:bg-black/10">
+                        <div className="text-gray-400 dark:text-gray-500">{t('settings.editQuotaLabel')}</div>
+                        <div className="font-medium text-gray-700 dark:text-gray-200">{formatLimitValue(draft.keyEditRemaining)}</div>
+                      </div>
+                      <div className="rounded-xl bg-white/70 px-2.5 py-2 dark:bg-black/10">
+                        <div className="text-gray-400 dark:text-gray-500">{t('settings.runningTasksLabel')}</div>
+                        <div className="font-medium text-gray-700 dark:text-gray-200">{runningTaskCount}</div>
+                      </div>
+                      <div className="rounded-xl bg-white/70 px-2.5 py-2 dark:bg-black/10">
+                        <div className="text-gray-400 dark:text-gray-500">{t('settings.maxRunningTasksLabel')}</div>
+                        <div className="font-medium text-gray-700 dark:text-gray-200">{formatLimitValue(draft.keyMaxRunningTasks)}</div>
+                      </div>
+                      <div className="col-span-2 rounded-xl bg-white/70 px-2.5 py-2 dark:bg-black/10">
+                        <div className="text-gray-400 dark:text-gray-500">{t('settings.availableTaskSlotsLabel')}</div>
+                        <div className="font-medium text-gray-700 dark:text-gray-200">{formatLimitValue(availableTaskSlots)}</div>
+                      </div>
+                    </div>
+                  </div>
+                ) : draft.apiKey.trim() && !profileLoading ? (
+                  <div className="mt-2 rounded-xl border border-gray-200/70 bg-gray-50/70 px-3 py-2 text-[10px] leading-5 text-gray-500 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-gray-400">
+                    {t('settings.keyProfileUnavailable')}
                   </div>
                 ) : null}
               </div>
