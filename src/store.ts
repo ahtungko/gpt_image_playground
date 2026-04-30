@@ -561,6 +561,8 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
 
   const latestTasks = useStore.getState().tasks
   useStore.getState().setTasks([task, ...latestTasks])
+  useStore.getState().setPrompt('')
+  useStore.getState().clearInputImages()
   await putTask(task)
 
   // 异步调用 API
