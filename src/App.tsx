@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { initStore } from './store'
 import { useStore } from './store'
+import { fetchBackendKeyProfile } from './lib/api'
 import type { ApiMode } from './types'
 import Header from './components/Header'
 import SearchBar from './components/SearchBar'
@@ -16,6 +17,7 @@ import ImageContextMenu from './components/ImageContextMenu'
 
 export default function App() {
   const setSettings = useStore((s) => s.setSettings)
+  const settings = useStore((s) => s.settings)
   const language = useStore((s) => s.settings.language)
 
   useEffect(() => {
@@ -62,6 +64,62 @@ export default function App() {
   useEffect(() => {
     document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en'
   }, [language])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const syncKeyProfile = async () => {
+      const apiKey = settings.apiKey.trim()
+      if (!apiKey) {
+        setSettings({
+          keyRole: null,
+          keyName: '',
+          keyGenerateRemaining: null,
+          keyEditRemaining: null,
+          keyMaxRunningTasks: null,
+        })
+        return
+      }
+
+      try {
+        const profile = await fetchBackendKeyProfile(settings)
+        if (cancelled) return
+
+        if (!profile) {
+          setSettings({
+            keyRole: null,
+            keyName: '',
+            keyGenerateRemaining: null,
+            keyEditRemaining: null,
+            keyMaxRunningTasks: null,
+          })
+          return
+        }
+
+        setSettings({
+          keyRole: profile.role,
+          keyName: profile.name || '',
+          keyGenerateRemaining: profile.generate_remaining ?? null,
+          keyEditRemaining: profile.edit_remaining ?? null,
+          keyMaxRunningTasks: profile.max_running_tasks ?? null,
+        })
+      } catch {
+        if (cancelled) return
+        setSettings({
+          keyRole: null,
+          keyName: '',
+          keyGenerateRemaining: null,
+          keyEditRemaining: null,
+          keyMaxRunningTasks: null,
+        })
+      }
+    }
+
+    void syncKeyProfile()
+    return () => {
+      cancelled = true
+    }
+  }, [settings.apiKey, settings.baseUrl, setSettings])
 
   return (
     <>
