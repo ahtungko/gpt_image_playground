@@ -23,6 +23,7 @@ export default function SettingsModal() {
   const [showApiKey, setShowApiKey] = useState(false)
   const [profileLoading, setProfileLoading] = useState(false)
   const profileRequestIdRef = useRef(0)
+  const wasOpenRef = useRef(false)
   const apiProxyAvailable = isApiProxyAvailable(readClientDevProxyConfig())
   const runningTaskCount = getRunningTaskSlots(tasks)
   const availableTaskSlots = getAvailableTaskSlots(draft, tasks)
@@ -32,11 +33,12 @@ export default function SettingsModal() {
     apiMode === 'responses' ? DEFAULT_RESPONSES_MODEL : DEFAULT_IMAGES_MODEL
 
   useEffect(() => {
-    if (showSettings) {
+    if (showSettings && !wasOpenRef.current) {
       setDraft(apiProxyAvailable ? settings : { ...settings, apiProxy: false })
       setTimeoutInput(String(settings.timeout))
     }
-  }, [apiProxyAvailable, showSettings, settings])
+    wasOpenRef.current = showSettings
+  }, [apiProxyAvailable, settings, showSettings])
 
   const normalizeDraft = (nextDraft: AppSettings): AppSettings => {
     const apiMode = nextDraft.apiMode === 'responses' ? 'responses' : DEFAULT_SETTINGS.apiMode
@@ -68,7 +70,11 @@ export default function SettingsModal() {
       keyEditRemaining: null,
       keyMaxRunningTasks: null,
     }
-    setDraft(nextDraft)
+    setDraft((currentDraft) =>
+      currentDraft.apiKey.trim() === baseDraft.apiKey.trim()
+        ? { ...currentDraft, keyRole: null, keyName: '', keyGenerateRemaining: null, keyEditRemaining: null, keyMaxRunningTasks: null }
+        : currentDraft,
+    )
     setSettings(nextDraft)
     return nextDraft
   }, [setSettings])
@@ -100,7 +106,18 @@ export default function SettingsModal() {
         keyEditRemaining: profile.edit_remaining ?? null,
         keyMaxRunningTasks: profile.max_running_tasks ?? null,
       }
-      setDraft(nextDraft)
+      setDraft((currentDraft) =>
+        currentDraft.apiKey.trim() === normalizedDraft.apiKey.trim()
+          ? {
+              ...currentDraft,
+              keyRole: profile.role,
+              keyName: profile.name || '',
+              keyGenerateRemaining: profile.generate_remaining ?? null,
+              keyEditRemaining: profile.edit_remaining ?? null,
+              keyMaxRunningTasks: profile.max_running_tasks ?? null,
+            }
+          : currentDraft,
+      )
       setSettings(nextDraft)
     } catch {
       if (requestId !== profileRequestIdRef.current) return
@@ -116,7 +133,7 @@ export default function SettingsModal() {
     if (!showSettings) return
     if (!settings.apiKey.trim()) return
     void refreshKeyProfile(apiProxyAvailable ? settings : { ...settings, apiProxy: false })
-  }, [apiProxyAvailable, refreshKeyProfile, settings, showSettings])
+  }, [apiProxyAvailable, refreshKeyProfile, settings.apiKey, settings.baseUrl, showSettings])
 
   const handleClose = () => {
     const nextTimeout = Number(timeoutInput)
