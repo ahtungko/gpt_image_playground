@@ -27,11 +27,12 @@ import {
   callImageApi,
   canUseBackgroundImageTasks,
   createBackgroundImageTaskIds,
+  fetchBackendKeyProfile,
 } from './lib/api'
 import { normalizeCaughtError } from './lib/error'
 import { validateMaskMatchesImage } from './lib/canvasImage'
 import { localizeKnownError } from './lib/localizedError'
-import { clampCountForSettings, isKeyBlockedByTaskLimit } from './lib/keyLimits'
+import { clampCountForSettings, getAvailableTaskSlots, isKeyBlockedByQuota, isKeyBlockedByTaskLimit } from './lib/keyLimits'
 import { orderInputImagesForMask } from './lib/mask'
 import { normalizeImageSize } from './lib/size'
 import { normalizeLocale, translate, type MessageKey } from './lib/i18n'
@@ -351,6 +352,33 @@ function tStore(key: MessageKey, values?: Record<string, string | number | boole
   return translate(useStore.getState().settings.language, key, values)
 }
 
+async function syncLatestKeyProfile(settings: AppSettings): Promise<AppSettings> {
+  if (!settings.apiKey.trim()) return settings
+
+  try {
+    const profile = await fetchBackendKeyProfile(settings)
+    const nextSettings: Partial<AppSettings> = profile
+      ? {
+          keyRole: profile.role,
+          keyName: profile.name || '',
+          keyGenerateRemaining: profile.generate_remaining ?? null,
+          keyEditRemaining: profile.edit_remaining ?? null,
+          keyMaxRunningTasks: profile.max_running_tasks ?? null,
+        }
+      : {
+          keyRole: null,
+          keyName: '',
+          keyGenerateRemaining: null,
+          keyEditRemaining: null,
+          keyMaxRunningTasks: null,
+        }
+    useStore.getState().setSettings(nextSettings)
+    return { ...useStore.getState().settings, ...nextSettings }
+  } catch {
+    return useStore.getState().settings
+  }
+}
+
 export function showCodexCliPrompt(force = false, reason = tStore('store.codexReasonPromptRevised')) {
   const state = useStore.getState()
   const settings = state.settings
@@ -370,12 +398,17 @@ export function showCodexCliPrompt(force = false, reason = tStore('store.codexRe
   })
 }
 
-function normalizeParamsForSettings(params: TaskParams, settings: AppSettings): TaskParams {
+function normalizeParamsForSettings(
+  params: TaskParams,
+  settings: AppSettings,
+  tasks: TaskRecord[] = [],
+  options: { isEdit?: boolean } = {},
+): TaskParams {
   return {
     ...params,
     size: normalizeImageSize(params.size) || DEFAULT_PARAMS.size,
     quality: settings.codexCli ? DEFAULT_PARAMS.quality : params.quality,
-    n: clampCountForSettings(Number(params.n) || DEFAULT_PARAMS.n, settings),
+    n: clampCountForSettings(Number(params.n) || DEFAULT_PARAMS.n, settings, tasks, options),
   }
 }
 
@@ -421,16 +454,23 @@ export async function initStore() {
 
 /** 提交新任务 */
 export async function submitTask(options: { allowFullMask?: boolean } = {}) {
-  const { settings, prompt, inputImages, maskDraft, params, showToast, setConfirmDialog } =
+  const { settings: initialSettings, prompt, inputImages, maskDraft, params, showToast, setConfirmDialog } =
     useStore.getState()
+  const currentTasks = useStore.getState().tasks
+  const settings = await syncLatestKeyProfile(initialSettings)
 
   if (!settings.apiKey) {
     showToast(tStore('store.apiKeyRequired'), 'error')
     useStore.getState().setShowSettings(true)
     return
   }
-  if (isKeyBlockedByTaskLimit(settings)) {
+  if (isKeyBlockedByTaskLimit(settings, currentTasks)) {
     showToast(tStore('store.keyTaskLimitZero'), 'error')
+    return
+  }
+  const isEdit = inputImages.length > 0 || Boolean(maskDraft)
+  if (isKeyBlockedByQuota(settings, { isEdit })) {
+    showToast(tStore('store.keyQuotaReached'), 'error')
     return
   }
 
@@ -476,9 +516,17 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
     await storeImage(img.dataUrl)
   }
 
-  const normalizedParams = normalizeParamsForSettings(params, settings)
-  if (normalizedParams.size !== params.size || normalizedParams.quality !== params.quality) {
-    useStore.getState().setParams({ size: normalizedParams.size, quality: normalizedParams.quality })
+  const normalizedParams = normalizeParamsForSettings(params, settings, currentTasks, { isEdit })
+  if (
+    normalizedParams.size !== params.size ||
+    normalizedParams.quality !== params.quality ||
+    normalizedParams.n !== params.n
+  ) {
+    useStore.getState().setParams({
+      size: normalizedParams.size,
+      quality: normalizedParams.quality,
+      n: normalizedParams.n,
+    })
   }
 
   const taskId = genId()
@@ -487,6 +535,12 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
   })
     ? createBackgroundImageTaskIds(taskId, normalizedParams)
     : undefined
+  const requiredTaskSlots = backgroundTaskIds?.length ?? 1
+  const availableTaskSlots = getAvailableTaskSlots(settings, currentTasks)
+  if (availableTaskSlots != null && availableTaskSlots < requiredTaskSlots) {
+    showToast(tStore('store.keyTaskLimitReached', { count: availableTaskSlots }), 'error')
+    return
+  }
   const task: TaskRecord = {
     id: taskId,
     prompt: prompt.trim(),
@@ -635,14 +689,30 @@ export function updateTaskInStore(taskId: string, patch: Partial<TaskRecord>) {
 
 /** 重试失败的任务：创建新任务并执行 */
 export async function retryTask(task: TaskRecord) {
-  const { settings } = useStore.getState()
-  const normalizedParams = normalizeParamsForSettings(task.params, settings)
+  const { settings: initialSettings, tasks, showToast } = useStore.getState()
+  const settings = await syncLatestKeyProfile(initialSettings)
+  if (isKeyBlockedByTaskLimit(settings, tasks)) {
+    showToast(tStore('store.keyTaskLimitZero'), 'error')
+    return
+  }
+  const isEdit = task.inputImageIds.length > 0 || Boolean(task.maskImageId)
+  if (isKeyBlockedByQuota(settings, { isEdit })) {
+    showToast(tStore('store.keyQuotaReached'), 'error')
+    return
+  }
+  const normalizedParams = normalizeParamsForSettings(task.params, settings, tasks, { isEdit })
   const taskId = genId()
   const backgroundTaskIds = canUseBackgroundImageTasks(settings, normalizedParams, {
     hasMask: Boolean(task.maskImageId),
   })
     ? createBackgroundImageTaskIds(taskId, normalizedParams)
     : undefined
+  const requiredTaskSlots = backgroundTaskIds?.length ?? 1
+  const availableTaskSlots = getAvailableTaskSlots(settings, tasks)
+  if (availableTaskSlots != null && availableTaskSlots < requiredTaskSlots) {
+    showToast(tStore('store.keyTaskLimitReached', { count: availableTaskSlots }), 'error')
+    return
+  }
   const newTask: TaskRecord = {
     id: taskId,
     prompt: task.prompt,

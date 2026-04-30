@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useStore, submitTask, addImageFromFile, updateTaskInStore, removeMultipleTasks } from '../store'
 import { DEFAULT_PARAMS } from '../types'
 import { normalizeImageSize } from '../lib/size'
-import { getMaxSelectableCount, isKeyBlockedByTaskLimit } from '../lib/keyLimits'
+import { getMaxSelectableCount, isKeyBlockedByQuota, isKeyBlockedByTaskLimit } from '../lib/keyLimits'
 import { createMaskPreviewDataUrl } from '../lib/canvasImage'
 import { localizeKnownError } from '../lib/localizedError'
 import { useI18n } from '../hooks/useI18n'
@@ -149,11 +149,13 @@ export default function InputBar() {
   )
   const dragCounter = useRef(0)
   const isMobile = useIsMobile()
+  const isEditMode = inputImages.length > 0 || Boolean(maskDraft)
 
-  const maxSelectableCount = getMaxSelectableCount(settings)
-  const keyBlockedByTaskLimit = isKeyBlockedByTaskLimit(settings)
+  const maxSelectableCount = getMaxSelectableCount(settings, tasks, { isEdit: isEditMode })
+  const keyBlockedByTaskLimit = isKeyBlockedByTaskLimit(settings, tasks)
+  const keyBlockedByQuota = isKeyBlockedByQuota(settings, { isEdit: isEditMode })
   const showCountLimitHint = settings.keyRole === 'user' && settings.keyMaxRunningTasks != null
-  const canSubmit = Boolean(prompt.trim() && settings.apiKey && !keyBlockedByTaskLimit)
+  const canSubmit = Boolean(prompt.trim() && settings.apiKey && !keyBlockedByTaskLimit && !keyBlockedByQuota)
   const atImageLimit = inputImages.length >= API_MAX_IMAGES
   const maskTargetImage = maskDraft
     ? inputImages.find((img) => img.id === maskDraft.targetImageId) ?? null
@@ -955,9 +957,9 @@ export default function InputBar() {
             const value = index + 1
             return { label: String(value), value }
           })}
-          disabled={keyBlockedByTaskLimit}
+          disabled={keyBlockedByTaskLimit || keyBlockedByQuota}
           className={`px-3 py-1.5 rounded-xl border border-gray-200/60 dark:border-white/[0.08] focus:outline-none text-xs transition-all duration-200 shadow-sm ${
-            keyBlockedByTaskLimit
+            keyBlockedByTaskLimit || keyBlockedByQuota
               ? 'bg-gray-100/50 dark:bg-white/[0.05] opacity-50 cursor-not-allowed'
               : 'bg-white/50 dark:bg-white/[0.03]'
           }`}
@@ -1144,6 +1146,7 @@ export default function InputBar() {
                 >
                   <ButtonTooltip visible={!settings.apiKey && submitHover} text={t('input.apiConfigMissing')} />
                   <ButtonTooltip visible={keyBlockedByTaskLimit && submitHover} text={t('input.keyTaskLimitZero')} />
+                  <ButtonTooltip visible={keyBlockedByQuota && submitHover} text={t('input.keyQuotaReached')} />
                   <button
                     onClick={() => settings.apiKey ? submitTask() : setShowSettings(true)}
                     disabled={settings.apiKey ? !canSubmit : false}
@@ -1199,6 +1202,7 @@ export default function InputBar() {
                 >
                   <ButtonTooltip visible={!settings.apiKey && submitHover} text={t('input.apiConfigMissing')} />
                   <ButtonTooltip visible={keyBlockedByTaskLimit && submitHover} text={t('input.keyTaskLimitZero')} />
+                  <ButtonTooltip visible={keyBlockedByQuota && submitHover} text={t('input.keyQuotaReached')} />
                   <button
                     onClick={() => settings.apiKey ? submitTask() : setShowSettings(true)}
                     disabled={settings.apiKey ? !canSubmit : false}
