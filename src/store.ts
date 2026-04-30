@@ -22,7 +22,12 @@ import {
   storeImage,
   hashDataUrl,
 } from './lib/db'
-import { callImageApi } from './lib/api'
+import {
+  callBackgroundImageApi,
+  callImageApi,
+  canUseBackgroundImageTasks,
+  createBackgroundImageTaskIds,
+} from './lib/api'
 import { normalizeCaughtError } from './lib/error'
 import { validateMaskMatchesImage } from './lib/canvasImage'
 import { localizeKnownError } from './lib/localizedError'
@@ -148,6 +153,7 @@ export const useStore = create<AppState>()(
               : st.settings.apiMode ?? DEFAULT_SETTINGS.apiMode,
           codexCli: s.codexCli ?? st.settings.codexCli ?? DEFAULT_SETTINGS.codexCli,
           apiProxy: s.apiProxy ?? st.settings.apiProxy ?? DEFAULT_SETTINGS.apiProxy,
+          backgroundTasks: s.backgroundTasks ?? st.settings.backgroundTasks ?? DEFAULT_SETTINGS.backgroundTasks,
           language: normalizeLocale(s.language ?? st.settings.language ?? DEFAULT_SETTINGS.language),
         },
       })),
@@ -297,6 +303,7 @@ export const useStore = create<AppState>()(
                 : DEFAULT_SETTINGS.apiMode,
             codexCli: persistedSettings.codexCli ?? DEFAULT_SETTINGS.codexCli,
             apiProxy: persistedSettings.apiProxy ?? DEFAULT_SETTINGS.apiProxy,
+            backgroundTasks: persistedSettings.backgroundTasks ?? DEFAULT_SETTINGS.backgroundTasks,
             language: normalizeLocale(persistedSettings.language ?? DEFAULT_SETTINGS.language),
           },
         }
@@ -377,6 +384,22 @@ export async function initStore() {
       await deleteImage(img.id)
     }
   }
+
+  for (const task of tasks) {
+    if (task.status !== 'running') continue
+    if (task.backgroundTaskIds?.length) {
+      executeTask(task.id)
+    } else {
+      updateTaskInStore(task.id, {
+        status: 'error',
+        error: tStore('store.interruptedTask'),
+        errorDetail: tStore('store.interruptedTaskDetail'),
+        errorKind: 'timeout',
+        finishedAt: Date.now(),
+        elapsed: Date.now() - task.createdAt,
+      })
+    }
+  }
 }
 
 /** 提交新任务 */
@@ -438,6 +461,11 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
   }
 
   const taskId = genId()
+  const backgroundTaskIds = canUseBackgroundImageTasks(settings, normalizedParams, {
+    hasMask: Boolean(maskImageId),
+  })
+    ? createBackgroundImageTaskIds(taskId, normalizedParams)
+    : undefined
   const task: TaskRecord = {
     id: taskId,
     prompt: prompt.trim(),
@@ -446,6 +474,7 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
     maskTargetImageId,
     maskImageId,
     outputImages: [],
+    backgroundTaskIds,
     status: 'running',
     error: null,
     errorDetail: null,
@@ -463,10 +492,17 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
   executeTask(taskId)
 }
 
+const activeExecutions = new Set<string>()
+
 async function executeTask(taskId: string) {
+  if (activeExecutions.has(taskId)) return
+  activeExecutions.add(taskId)
   const { settings } = useStore.getState()
   const task = useStore.getState().tasks.find((t) => t.id === taskId)
-  if (!task) return
+  if (!task) {
+    activeExecutions.delete(taskId)
+    return
+  }
 
   try {
     // 获取输入图片 data URLs
@@ -482,13 +518,16 @@ async function executeTask(taskId: string) {
       if (!maskDataUrl) throw new Error(tStore('store.maskImageMissing'))
     }
 
-    const result = await callImageApi({
+    const callOptions = {
       settings,
       prompt: task.prompt,
       params: task.params,
       inputImageDataUrls: inputDataUrls,
       maskDataUrl,
-    })
+    }
+    const result = task.backgroundTaskIds?.length
+      ? await callBackgroundImageApi({ ...callOptions, taskIds: task.backgroundTaskIds })
+      : await callImageApi(callOptions)
 
     // 存储输出图片
     const outputIds: string[] = []
@@ -511,7 +550,7 @@ async function executeTask(taskId: string) {
       (revisedPrompt) => revisedPrompt?.trim() && revisedPrompt.trim() !== task.prompt.trim(),
     )
     const hasRevisedPromptValue = result.revisedPrompts?.some((revisedPrompt) => revisedPrompt?.trim())
-    if (!settings.codexCli) {
+    if (!settings.codexCli && !task.backgroundTaskIds?.length) {
       if (promptWasRevised) {
         showCodexCliPrompt()
       } else if (!hasRevisedPromptValue) {
@@ -560,6 +599,7 @@ async function executeTask(taskId: string) {
   for (const imgId of task.inputImageIds) {
     imageCache.delete(imgId)
   }
+  activeExecutions.delete(taskId)
 }
 
 export function updateTaskInStore(taskId: string, patch: Partial<TaskRecord>) {
@@ -577,6 +617,11 @@ export async function retryTask(task: TaskRecord) {
   const { settings } = useStore.getState()
   const normalizedParams = normalizeParamsForSettings(task.params, settings)
   const taskId = genId()
+  const backgroundTaskIds = canUseBackgroundImageTasks(settings, normalizedParams, {
+    hasMask: Boolean(task.maskImageId),
+  })
+    ? createBackgroundImageTaskIds(taskId, normalizedParams)
+    : undefined
   const newTask: TaskRecord = {
     id: taskId,
     prompt: task.prompt,
@@ -585,6 +630,7 @@ export async function retryTask(task: TaskRecord) {
     maskTargetImageId: task.maskTargetImageId ?? null,
     maskImageId: task.maskImageId ?? null,
     outputImages: [],
+    backgroundTaskIds,
     status: 'running',
     error: null,
     errorDetail: null,

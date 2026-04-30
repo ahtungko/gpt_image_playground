@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_PARAMS, DEFAULT_SETTINGS } from '../types'
-import { callImageApi } from './api'
+import { callBackgroundImageApi, callImageApi } from './api'
 
 describe('callImageApi', () => {
   afterEach(() => {
@@ -144,5 +144,60 @@ describe('callImageApi', () => {
       kind: 'no_image',
       detail,
     })
+  })
+
+  it('submits and polls chatgpt2api backend background tasks', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url === 'http://api.example.com/api/image-tasks/generations') {
+        expect(init?.method).toBe('POST')
+        expect(JSON.parse(String(init?.body))).toMatchObject({
+          client_task_id: 'task-1',
+          prompt: 'prompt',
+          model: 'gpt-image-2',
+        })
+        return new Response(JSON.stringify({
+          id: 'task-1',
+          status: 'queued',
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+
+      if (url === 'http://api.example.com/api/image-tasks?ids=task-1') {
+        expect(init?.method).toBe('GET')
+        return new Response(JSON.stringify({
+          items: [{
+            id: 'task-1',
+            status: 'success',
+            data: [{ b64_json: 'aW1hZ2U=' }],
+          }],
+          missing_ids: [],
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`)
+    })
+
+    const result = await callBackgroundImageApi({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        apiKey: 'test-key',
+        backgroundTasks: true,
+        baseUrl: 'http://api.example.com/v1',
+      },
+      prompt: 'prompt',
+      params: { ...DEFAULT_PARAMS },
+      inputImageDataUrls: [],
+      taskIds: ['task-1'],
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(result.images).toEqual(['data:image/png;base64,aW1hZ2U='])
+    expect(result.actualParams).toEqual({ n: 1 })
   })
 })

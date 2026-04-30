@@ -12,10 +12,12 @@ export interface AppSettings {
   apiMode: ApiMode
   codexCli: boolean
   apiProxy: boolean
+  backgroundTasks: boolean
   language: Locale
 }
 
 const DEFAULT_BASE_URL = import.meta.env.VITE_DEFAULT_API_URL?.trim() || 'https://api.openai.com/v1'
+const DEFAULT_BACKGROUND_TASKS = !/\/\/api\.openai\.com(?:\/|$)/i.test(DEFAULT_BASE_URL)
 export const DEFAULT_IMAGES_MODEL = 'gpt-image-2'
 export const DEFAULT_RESPONSES_MODEL = 'gpt-5.5'
 
@@ -27,6 +29,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   apiMode: 'images',
   codexCli: false,
   apiProxy: false,
+  backgroundTasks: DEFAULT_BACKGROUND_TASKS,
   language: getDefaultLocale(),
 }
 
@@ -95,6 +98,8 @@ export interface TaskRecord {
   maskImageId?: string | null
   /** 输出图片的 image store id 列表 */
   outputImages: string[]
+  /** chatgpt2api backend async image task ids, used to resume polling after refresh/background */
+  backgroundTaskIds?: string[]
   status: TaskStatus
   /** Short, user-friendly error summary shown in the UI */
   error: string | null

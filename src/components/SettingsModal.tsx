@@ -198,6 +198,29 @@ export default function SettingsModal() {
               )}
 
               <div className="block">
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="block text-xs text-gray-500 dark:text-gray-400">{t('settings.backgroundTasks')}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextDraft = { ...draft, backgroundTasks: !draft.backgroundTasks }
+                      setDraft(nextDraft)
+                      commitSettings(nextDraft)
+                    }}
+                    className={`relative inline-flex h-3.5 w-6 items-center rounded-full transition-colors ${draft.backgroundTasks ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                    role="switch"
+                    aria-checked={draft.backgroundTasks}
+                    aria-label={t('settings.backgroundTasks')}
+                  >
+                    <span className={`inline-block h-2.5 w-2.5 transform rounded-full bg-white shadow transition-transform ${draft.backgroundTasks ? 'translate-x-[11px]' : 'translate-x-[2px]'}`} />
+                  </button>
+                </div>
+                <div data-selectable-text className="text-[10px] leading-4 text-gray-400 dark:text-gray-500">
+                  {t('settings.backgroundTasksDesc')}
+                </div>
+              </div>
+
+              <div className="block">
                 <span className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('settings.apiKey')}</span>
                 <div className="relative">
                   <input

@@ -1,6 +1,6 @@
 import type { AppSettings, ImageApiResponse, ResponsesApiResponse, TaskParams } from '../types'
 import { dataUrlToBlob, imageDataUrlToPngBlob, maskDataUrlToPngBlob } from './canvasImage'
-import { buildApiUrl, isApiProxyAvailable, readClientDevProxyConfig } from './devProxy'
+import { buildApiUrl, isApiProxyAvailable, normalizeBaseUrl, readClientDevProxyConfig } from './devProxy'
 import { createAppError } from './error'
 import type { Locale } from './i18n'
 
@@ -232,6 +232,91 @@ export interface CallApiResult {
   revisedPrompts?: Array<string | undefined>
 }
 
+type BackgroundImageTaskStatus = 'queued' | 'running' | 'success' | 'error'
+
+interface BackgroundImageTask {
+  id?: string
+  status?: BackgroundImageTaskStatus
+  data?: ImageApiResponse['data']
+  error?: string
+  size?: string
+}
+
+interface BackgroundImageTaskListResponse {
+  items?: BackgroundImageTask[]
+  missing_ids?: string[]
+}
+
+const BACKGROUND_TASK_POLL_INTERVAL_MS = 2500
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function normalizeBackendRootUrl(baseUrl: string): string {
+  const normalizedBaseUrl = normalizeBaseUrl(baseUrl)
+  if (!normalizedBaseUrl) return ''
+
+  try {
+    const url = new URL(normalizedBaseUrl)
+    const segments = url.pathname.split('/').filter(Boolean)
+    if (segments[segments.length - 1] === 'v1') segments.pop()
+    const pathname = segments.length ? `/${segments.join('/')}` : ''
+    return `${url.origin}${pathname}`
+  } catch {
+    return normalizedBaseUrl.replace(/\/v1\/?$/i, '').replace(/\/+$/, '')
+  }
+}
+
+function buildBackendApiUrl(settings: AppSettings, path: string): string {
+  const rootUrl = normalizeBackendRootUrl(settings.baseUrl)
+  const endpointPath = path.replace(/^\/+/, '')
+  return rootUrl ? `${rootUrl}/${endpointPath}` : `/${endpointPath}`
+}
+
+function backgroundTaskSize(size: string): string | undefined {
+  const trimmed = size.trim()
+  if (!trimmed || trimmed === 'auto') return undefined
+
+  const match = trimmed.match(/^(\d+)\s*[xX?]\s*(\d+)$/)
+  if (!match) return trimmed
+
+  const width = Number(match[1])
+  const height = Number(match[2])
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return trimmed
+
+  const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b)
+  const divisor = gcd(width, height)
+  return `${width / divisor}:${height / divisor}`
+}
+
+function imagePromptForSettings(settings: AppSettings, prompt: string): string {
+  return settings.codexCli
+    ? `Use the following text as the complete prompt. Do not rewrite it:
+${prompt}`
+    : prompt
+}
+
+export function canUseBackgroundImageTasks(
+  settings: AppSettings,
+  params: TaskParams,
+  options: { hasMask?: boolean } = {},
+): boolean {
+  return Boolean(
+    settings.backgroundTasks &&
+    settings.apiMode === 'images' &&
+    !options.hasMask &&
+    params.n > 0
+  )
+}
+
+export function createBackgroundImageTaskIds(localTaskId: string, params: TaskParams): string[] {
+  const count = Math.max(1, Math.floor(Number(params.n) || 1))
+  return Array.from({ length: count }, (_, index) =>
+    count === 1 ? localTaskId : `${localTaskId}-${index + 1}`,
+  )
+}
+
 function collectTextFields(value: unknown, texts: string[], depth = 0) {
   if (depth > 5 || value == null) return
   if (Array.isArray(value)) {
@@ -341,6 +426,175 @@ function mergeActualParams(...sources: Array<Partial<TaskParams>>): Partial<Task
   return Object.keys(merged).length ? merged : undefined
 }
 
+async function readJsonResponse<T>(response: Response, locale?: Locale): Promise<T> {
+  if (!response.ok) {
+    throw await getApiError(response, locale)
+  }
+  return await response.json() as T
+}
+
+async function submitBackgroundGenerationTask(opts: CallApiOptions, taskId: string): Promise<BackgroundImageTask> {
+  const { settings, params } = opts
+  const body: Record<string, unknown> = {
+    client_task_id: taskId,
+    prompt: imagePromptForSettings(settings, opts.prompt),
+    model: settings.model,
+  }
+  const size = backgroundTaskSize(params.size)
+  if (size) body.size = size
+
+  const response = await fetch(buildBackendApiUrl(settings, '/api/image-tasks/generations'), {
+    method: 'POST',
+    headers: {
+      ...createRequestHeaders(settings),
+      'Content-Type': 'application/json',
+    },
+    cache: 'no-store',
+    body: JSON.stringify(body),
+  })
+
+  return readJsonResponse<BackgroundImageTask>(response, settings.language)
+}
+
+async function submitBackgroundEditTask(opts: CallApiOptions, taskId: string): Promise<BackgroundImageTask> {
+  const { settings, params, inputImageDataUrls } = opts
+  const formData = new FormData()
+  formData.append('client_task_id', taskId)
+  formData.append('prompt', imagePromptForSettings(settings, opts.prompt))
+  formData.append('model', settings.model)
+  const size = backgroundTaskSize(params.size)
+  if (size) formData.append('size', size)
+
+  const imageBlobs = await Promise.all(inputImageDataUrls.map((dataUrl) => dataUrlToBlob(dataUrl)))
+  assertImageInputPayloadSize(imageBlobs.reduce((sum, blob) => sum + blob.size, 0))
+
+  for (let i = 0; i < imageBlobs.length; i++) {
+    const blob = imageBlobs[i]
+    const ext = blob.type.split('/')[1] || 'png'
+    formData.append('image[]', blob, `input-${i + 1}.${ext}`)
+  }
+
+  const response = await fetch(buildBackendApiUrl(settings, '/api/image-tasks/edits'), {
+    method: 'POST',
+    headers: createRequestHeaders(settings),
+    cache: 'no-store',
+    body: formData,
+  })
+
+  return readJsonResponse<BackgroundImageTask>(response, settings.language)
+}
+
+async function submitBackgroundImageTasks(
+  opts: CallApiOptions,
+  taskIds: string[],
+): Promise<BackgroundImageTask[]> {
+  const submitted: BackgroundImageTask[] = []
+  for (const taskId of taskIds) {
+    submitted.push(
+      opts.inputImageDataUrls.length > 0
+        ? await submitBackgroundEditTask(opts, taskId)
+        : await submitBackgroundGenerationTask(opts, taskId),
+    )
+  }
+  return submitted
+}
+
+async function fetchBackgroundImageTasks(
+  settings: AppSettings,
+  taskIds: string[],
+): Promise<BackgroundImageTaskListResponse> {
+  const params = new URLSearchParams({ ids: taskIds.join(',') })
+  const response = await fetch(`${buildBackendApiUrl(settings, '/api/image-tasks')}?${params.toString()}`, {
+    method: 'GET',
+    headers: createRequestHeaders(settings),
+    cache: 'no-store',
+  })
+
+  return readJsonResponse<BackgroundImageTaskListResponse>(response, settings.language)
+}
+
+async function collectBackgroundTaskImages(
+  opts: CallApiOptions,
+  tasks: BackgroundImageTask[],
+): Promise<string[]> {
+  const mime = MIME_MAP[opts.params.output_format] || 'image/png'
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), opts.settings.timeout * 1000)
+
+  try {
+    const images: string[] = []
+    for (const task of tasks) {
+      const data = Array.isArray(task.data) ? task.data : []
+      for (const item of data) {
+        const b64 = item.b64_json
+        if (b64) {
+          images.push(normalizeBase64Image(b64, mime))
+          continue
+        }
+        if (isHttpUrl(item.url)) {
+          images.push(await fetchImageUrlAsDataUrl(item.url, mime, controller.signal))
+        }
+      }
+    }
+    return images
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
+async function pollBackgroundImageTasks(opts: CallApiOptions, taskIds: string[]): Promise<CallApiResult> {
+  while (true) {
+    const payload = await fetchBackgroundImageTasks(opts.settings, taskIds)
+    const tasks = Array.isArray(payload.items) ? payload.items : []
+    const missingIds = Array.isArray(payload.missing_ids) ? payload.missing_ids : []
+
+    if (missingIds.length) {
+      throw createAppError(`Background image task not found: ${missingIds.join(', ')}`, {
+        kind: 'server',
+        locale: opts.settings.language,
+      })
+    }
+
+    const taskById = new Map(tasks.map((task) => [task.id, task]))
+    const orderedTasks = taskIds.map((taskId) => taskById.get(taskId)).filter(Boolean) as BackgroundImageTask[]
+    const running = orderedTasks.some((task) => task.status === 'queued' || task.status === 'running')
+
+    if (orderedTasks.length === taskIds.length && !running) {
+      const successfulTasks = orderedTasks.filter((task) => task.status === 'success')
+      if (successfulTasks.length > 0) {
+        const images = await collectBackgroundTaskImages(opts, successfulTasks)
+        if (!images.length) {
+          throw createAppError('API returned no usable image data', {
+            kind: 'no_image',
+            locale: opts.settings.language,
+          })
+        }
+        return {
+          images,
+          actualParams: mergeActualParams({ n: images.length }),
+          actualParamsList: images.map(() => mergeActualParams({ n: 1 })),
+          revisedPrompts: images.map(() => undefined),
+        }
+      }
+
+      const firstError = orderedTasks.find((task) => task.error)?.error
+      throw createAppError(firstError || 'Background image task failed', {
+        locale: opts.settings.language,
+      })
+    }
+
+    await sleep(BACKGROUND_TASK_POLL_INTERVAL_MS)
+  }
+}
+
+export async function callBackgroundImageApi(
+  opts: CallApiOptions & { taskIds: string[] },
+): Promise<CallApiResult> {
+  const taskIds = opts.taskIds.length ? opts.taskIds : createBackgroundImageTaskIds(`${Date.now()}`, opts.params)
+  await submitBackgroundImageTasks(opts, taskIds)
+  return pollBackgroundImageTasks(opts, taskIds)
+}
+
 export async function callImageApi(opts: CallApiOptions): Promise<CallApiResult> {
   return opts.settings.apiMode === 'responses'
     ? callResponsesImageApi(opts)
@@ -389,9 +643,7 @@ async function callImagesApiConcurrent(opts: CallApiOptions, n: number): Promise
 
 async function callImagesApiSingle(opts: CallApiOptions): Promise<CallApiResult> {
   const { settings, prompt: originalPrompt, params, inputImageDataUrls } = opts
-  const prompt = settings.codexCli
-    ? `Use the following text as the complete prompt. Do not rewrite it:\n${originalPrompt}`
-    : originalPrompt
+  const prompt = imagePromptForSettings(settings, originalPrompt)
   const isEdit = inputImageDataUrls.length > 0
   const mime = MIME_MAP[params.output_format] || 'image/png'
   const proxyConfig = readClientDevProxyConfig()
