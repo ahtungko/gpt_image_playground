@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useStore, submitTask, addImageFromFile, updateTaskInStore, removeMultipleTasks } from '../store'
 import { DEFAULT_PARAMS } from '../types'
 import { normalizeImageSize } from '../lib/size'
+import { getMaxSelectableCount, isKeyBlockedByTaskLimit } from '../lib/keyLimits'
 import { createMaskPreviewDataUrl } from '../lib/canvasImage'
 import { localizeKnownError } from '../lib/localizedError'
 import { useI18n } from '../hooks/useI18n'
@@ -146,11 +147,13 @@ export default function InputBar() {
   const [outputCompressionInput, setOutputCompressionInput] = useState(
     params.output_compression == null ? '' : String(params.output_compression),
   )
-  const [nInput, setNInput] = useState(String(params.n))
   const dragCounter = useRef(0)
   const isMobile = useIsMobile()
 
-  const canSubmit = prompt.trim() && settings.apiKey
+  const maxSelectableCount = getMaxSelectableCount(settings)
+  const keyBlockedByTaskLimit = isKeyBlockedByTaskLimit(settings)
+  const showCountLimitHint = settings.keyRole === 'user' && settings.keyMaxRunningTasks != null
+  const canSubmit = Boolean(prompt.trim() && settings.apiKey && !keyBlockedByTaskLimit)
   const atImageLimit = inputImages.length >= API_MAX_IMAGES
   const maskTargetImage = maskDraft
     ? inputImages.find((img) => img.id === maskDraft.targetImageId) ?? null
@@ -166,8 +169,11 @@ export default function InputBar() {
   }, [params.output_compression])
 
   useEffect(() => {
-    setNInput(String(params.n))
-  }, [params.n])
+    const normalized = Math.max(1, Math.min(maxSelectableCount, Math.floor(Number(params.n) || DEFAULT_PARAMS.n)))
+    if (normalized !== params.n) {
+      setParams({ n: normalized })
+    }
+  }, [maxSelectableCount, params.n, setParams])
 
   useEffect(() => {
     if (settings.apiMode === 'responses' && params.moderation !== 'auto') {
@@ -232,14 +238,6 @@ export default function InputBar() {
     setOutputCompressionInput(String(nextValue))
     setParams({ output_compression: nextValue })
   }, [outputCompressionInput, params.output_compression, setParams])
-
-  const commitN = useCallback(() => {
-    const nextValue = Number(nInput)
-    const normalizedValue =
-      nInput.trim() === '' ? DEFAULT_PARAMS.n : Number.isNaN(nextValue) ? params.n : nextValue
-    setNInput(String(normalizedValue))
-    setParams({ n: normalizedValue })
-  }, [nInput, params.n, setParams])
 
   const showModerationHint = () => {
     if (settings.apiMode === 'responses') setModerationHintVisible(true)
@@ -946,15 +944,23 @@ export default function InputBar() {
         />
       </label>
       <label className="flex flex-col gap-0.5">
-        <span className="text-gray-400 dark:text-gray-500 ml-1">{t('input.count')}</span>
-        <input
-          value={nInput}
-          onChange={(e) => setNInput(e.target.value)}
-          onBlur={commitN}
-          type="number"
-          min={1}
-          max={4}
-          className="px-3 py-1.5 rounded-xl border border-gray-200/60 dark:border-white/[0.08] bg-white/50 dark:bg-white/[0.03] focus:outline-none text-xs transition-all duration-200 shadow-sm"
+        <span className="text-gray-400 dark:text-gray-500 ml-1">
+          {t('input.count')}
+          {showCountLimitHint ? ` · ${t('input.keyCountLimit', { max: maxSelectableCount })}` : ''}
+        </span>
+        <Select
+          value={params.n}
+          onChange={(val) => setParams({ n: Number(val) || 1 })}
+          options={Array.from({ length: maxSelectableCount }, (_, index) => {
+            const value = index + 1
+            return { label: String(value), value }
+          })}
+          disabled={keyBlockedByTaskLimit}
+          className={`px-3 py-1.5 rounded-xl border border-gray-200/60 dark:border-white/[0.08] focus:outline-none text-xs transition-all duration-200 shadow-sm ${
+            keyBlockedByTaskLimit
+              ? 'bg-gray-100/50 dark:bg-white/[0.05] opacity-50 cursor-not-allowed'
+              : 'bg-white/50 dark:bg-white/[0.03]'
+          }`}
         />
       </label>
     </div>
@@ -1137,6 +1143,7 @@ export default function InputBar() {
                   onMouseLeave={() => setSubmitHover(false)}
                 >
                   <ButtonTooltip visible={!settings.apiKey && submitHover} text={t('input.apiConfigMissing')} />
+                  <ButtonTooltip visible={keyBlockedByTaskLimit && submitHover} text={t('input.keyTaskLimitZero')} />
                   <button
                     onClick={() => settings.apiKey ? submitTask() : setShowSettings(true)}
                     disabled={settings.apiKey ? !canSubmit : false}
@@ -1191,6 +1198,7 @@ export default function InputBar() {
                   onMouseLeave={() => setSubmitHover(false)}
                 >
                   <ButtonTooltip visible={!settings.apiKey && submitHover} text={t('input.apiConfigMissing')} />
+                  <ButtonTooltip visible={keyBlockedByTaskLimit && submitHover} text={t('input.keyTaskLimitZero')} />
                   <button
                     onClick={() => settings.apiKey ? submitTask() : setShowSettings(true)}
                     disabled={settings.apiKey ? !canSubmit : false}

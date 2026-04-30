@@ -110,6 +110,7 @@ export function classifyError(detail: string, status?: number, code?: string): T
       /\btoo many requests\b/,
       /\bslow down\b/,
       /\brequests per\b/,
+      /\brunning tasks?\b/,
     ])
   ) {
     return 'rate_limit'

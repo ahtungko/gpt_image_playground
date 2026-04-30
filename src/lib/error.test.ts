@@ -6,6 +6,7 @@ describe('error normalization', () => {
     expect(classifyError('API key has been disabled')).toBe('auth')
     expect(classifyError('insufficient_quota: billing hard limit reached', 429)).toBe('quota')
     expect(classifyError('Too many requests', 429)).toBe('rate_limit')
+    expect(classifyError('user key already has 1 running tasks (limit 1)', 429)).toBe('rate_limit')
     expect(classifyError('Request was blocked by content_policy')).toBe('content_policy')
     expect(classifyError('Failed to fetch')).toBe('network')
     expect(classifyError('This is actually an image of a kitten. Do you want me to generate another?')).toBe('no_image')

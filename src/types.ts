@@ -3,6 +3,7 @@ import { getDefaultLocale, type Locale } from './lib/i18n'
 // ===== 设置 =====
 
 export type ApiMode = 'images' | 'responses'
+export type KeyRole = 'admin' | 'user'
 
 export interface AppSettings {
   baseUrl: string
@@ -14,6 +15,11 @@ export interface AppSettings {
   apiProxy: boolean
   backgroundTasks: boolean
   language: Locale
+  keyRole: KeyRole | null
+  keyName: string
+  keyGenerateRemaining: number | null
+  keyEditRemaining: number | null
+  keyMaxRunningTasks: number | null
 }
 
 const DEFAULT_BASE_URL = import.meta.env.VITE_DEFAULT_API_URL?.trim() || 'https://api.openai.com/v1'
@@ -31,6 +37,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   apiProxy: false,
   backgroundTasks: DEFAULT_BACKGROUND_TASKS,
   language: getDefaultLocale(),
+  keyRole: null,
+  keyName: '',
+  keyGenerateRemaining: null,
+  keyEditRemaining: null,
+  keyMaxRunningTasks: null,
 }
 
 // ===== 任务参数 =====

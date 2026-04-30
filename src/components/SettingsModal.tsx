@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { isApiProxyAvailable, readClientDevProxyConfig } from '../lib/devProxy'
+import { fetchBackendKeyProfile } from '../lib/api'
 import { useStore, exportData, importData, clearAllData } from '../store'
 import { DEFAULT_IMAGES_MODEL, DEFAULT_RESPONSES_MODEL, DEFAULT_SETTINGS, type AppSettings } from '../types'
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape'
@@ -18,6 +19,8 @@ export default function SettingsModal() {
   const [draft, setDraft] = useState<AppSettings>(settings)
   const [timeoutInput, setTimeoutInput] = useState(String(settings.timeout))
   const [showApiKey, setShowApiKey] = useState(false)
+  const [profileLoading, setProfileLoading] = useState(false)
+  const profileRequestIdRef = useRef(0)
   const apiProxyAvailable = isApiProxyAvailable(readClientDevProxyConfig())
 
   const getDefaultModelForMode = (apiMode: AppSettings['apiMode']) =>
@@ -30,32 +33,97 @@ export default function SettingsModal() {
     }
   }, [apiProxyAvailable, showSettings, settings])
 
-  const commitSettings = (nextDraft: AppSettings) => {
+  const normalizeDraft = (nextDraft: AppSettings): AppSettings => {
     const apiMode = nextDraft.apiMode === 'responses' ? 'responses' : DEFAULT_SETTINGS.apiMode
     const defaultModel = getDefaultModelForMode(apiMode)
-    const normalizedDraft = {
+    return {
       ...nextDraft,
       apiMode,
       baseUrl: DEFAULT_SETTINGS.baseUrl,
-      apiKey: nextDraft.apiKey,
+      apiKey: nextDraft.apiKey.trim(),
       apiProxy: apiProxyAvailable ? nextDraft.apiProxy : false,
       model: nextDraft.model.trim() || defaultModel,
       timeout: Number(nextDraft.timeout) || DEFAULT_SETTINGS.timeout,
       language: nextDraft.language ?? DEFAULT_SETTINGS.language,
     }
+  }
+
+  const commitSettings = (nextDraft: AppSettings) => {
+    const normalizedDraft = normalizeDraft(nextDraft)
     setDraft(normalizedDraft)
     setSettings(normalizedDraft)
   }
 
+  const clearKeyProfile = useCallback((baseDraft: AppSettings) => {
+    const nextDraft = {
+      ...baseDraft,
+      keyRole: null,
+      keyName: '',
+      keyGenerateRemaining: null,
+      keyEditRemaining: null,
+      keyMaxRunningTasks: null,
+    }
+    setDraft(nextDraft)
+    setSettings(nextDraft)
+    return nextDraft
+  }, [setSettings])
+
+  const refreshKeyProfile = useCallback(async (baseDraft: AppSettings) => {
+    const normalizedDraft = normalizeDraft(baseDraft)
+    const requestId = ++profileRequestIdRef.current
+
+    if (!normalizedDraft.apiKey) {
+      clearKeyProfile(normalizedDraft)
+      return
+    }
+
+    setProfileLoading(true)
+    try {
+      const profile = await fetchBackendKeyProfile(normalizedDraft)
+      if (requestId !== profileRequestIdRef.current) return
+
+      if (!profile) {
+        clearKeyProfile(normalizedDraft)
+        return
+      }
+
+      const nextDraft = {
+        ...normalizedDraft,
+        keyRole: profile.role,
+        keyName: profile.name || '',
+        keyGenerateRemaining: profile.generate_remaining ?? null,
+        keyEditRemaining: profile.edit_remaining ?? null,
+        keyMaxRunningTasks: profile.max_running_tasks ?? null,
+      }
+      setDraft(nextDraft)
+      setSettings(nextDraft)
+    } catch {
+      if (requestId !== profileRequestIdRef.current) return
+      clearKeyProfile(normalizedDraft)
+    } finally {
+      if (requestId === profileRequestIdRef.current) {
+        setProfileLoading(false)
+      }
+    }
+  }, [clearKeyProfile, setSettings])
+
+  useEffect(() => {
+    if (!showSettings) return
+    if (!settings.apiKey.trim()) return
+    void refreshKeyProfile(apiProxyAvailable ? settings : { ...settings, apiProxy: false })
+  }, [apiProxyAvailable, refreshKeyProfile, settings, showSettings])
+
   const handleClose = () => {
     const nextTimeout = Number(timeoutInput)
-    commitSettings({
+    const nextDraft = {
       ...draft,
       timeout:
         timeoutInput.trim() === '' || Number.isNaN(nextTimeout)
           ? DEFAULT_SETTINGS.timeout
           : nextTimeout,
-    })
+    }
+    commitSettings(nextDraft)
+    void refreshKeyProfile(nextDraft)
     setShowSettings(false)
   }
 
@@ -226,7 +294,11 @@ export default function SettingsModal() {
                   <input
                     value={draft.apiKey}
                     onChange={(e) => setDraft((prev) => ({ ...prev, apiKey: e.target.value }))}
-                    onBlur={(e) => commitSettings({ ...draft, apiKey: e.target.value })}
+                    onBlur={(e) => {
+                      const nextDraft = { ...draft, apiKey: e.target.value }
+                      commitSettings(nextDraft)
+                      void refreshKeyProfile(nextDraft)
+                    }}
                     type={showApiKey ? 'text' : 'password'}
                     placeholder="sk-..."
                     className="w-full rounded-xl border border-gray-200/70 bg-white/60 px-3 py-2 pr-10 text-sm text-gray-700 outline-none transition focus:border-blue-300 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-gray-200 dark:focus:border-blue-500/50"
@@ -255,6 +327,30 @@ export default function SettingsModal() {
                 <div data-selectable-text className="mt-1 text-[10px] text-gray-400 dark:text-gray-500">
                   {t('settings.apiKeyDesc')}
                 </div>
+                {profileLoading ? (
+                  <div className="mt-1 text-[10px] text-gray-400 dark:text-gray-500">
+                    {t('settings.keyProfileLoading')}
+                  </div>
+                ) : null}
+                {draft.keyRole ? (
+                  <div className="mt-1 rounded-xl border border-gray-200/70 bg-gray-50/70 px-3 py-2 text-[10px] leading-5 text-gray-500 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-gray-400">
+                    <div>
+                      {t('settings.keyProfileSummary', {
+                        role: draft.keyRole,
+                        name: draft.keyName || '-',
+                      })}
+                    </div>
+                    {draft.keyRole === 'user' ? (
+                      <div>
+                        {t('settings.keyProfileLimits', {
+                          generate: draft.keyGenerateRemaining == null ? '∞' : draft.keyGenerateRemaining,
+                          edit: draft.keyEditRemaining == null ? '∞' : draft.keyEditRemaining,
+                          max: draft.keyMaxRunningTasks == null ? '∞' : draft.keyMaxRunningTasks,
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
 
               <label className="block">

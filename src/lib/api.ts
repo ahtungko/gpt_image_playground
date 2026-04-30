@@ -1,4 +1,4 @@
-import type { AppSettings, ImageApiResponse, ResponsesApiResponse, TaskParams } from '../types'
+import type { AppSettings, ImageApiResponse, KeyRole, ResponsesApiResponse, TaskParams } from '../types'
 import { dataUrlToBlob, imageDataUrlToPngBlob, maskDataUrlToPngBlob } from './canvasImage'
 import { buildApiUrl, isApiProxyAvailable, normalizeBaseUrl, readClientDevProxyConfig } from './devProxy'
 import { createAppError } from './error'
@@ -221,6 +221,14 @@ export interface CallApiOptions {
   maskDataUrl?: string
 }
 
+export interface BackendKeyProfile {
+  role: KeyRole
+  name: string
+  generate_remaining?: number | null
+  edit_remaining?: number | null
+  max_running_tasks?: number | null
+}
+
 export interface CallApiResult {
   /** base64 data URL 列表 */
   images: string[]
@@ -431,6 +439,42 @@ async function readJsonResponse<T>(response: Response, locale?: Locale): Promise
     throw await getApiError(response, locale)
   }
   return await response.json() as T
+}
+
+export async function fetchBackendKeyProfile(settings: AppSettings): Promise<BackendKeyProfile | null> {
+  if (!settings.apiKey.trim()) return null
+
+  const response = await fetch(buildBackendApiUrl(settings, '/auth/login'), {
+    method: 'POST',
+    headers: {
+      ...createRequestHeaders(settings),
+      'Content-Type': 'application/json',
+    },
+    body: '{}',
+  })
+
+  if (response.status === 404 || response.status === 405) {
+    return null
+  }
+
+  const payload = await readJsonResponse<{
+    ok?: boolean
+    role?: KeyRole
+    name?: string
+    generate_remaining?: number | null
+    edit_remaining?: number | null
+    max_running_tasks?: number | null
+  }>(response, settings.language)
+
+  if (!payload?.ok || !payload.role) return null
+
+  return {
+    role: payload.role,
+    name: typeof payload.name === 'string' ? payload.name : '',
+    generate_remaining: payload.generate_remaining ?? null,
+    edit_remaining: payload.edit_remaining ?? null,
+    max_running_tasks: payload.max_running_tasks ?? null,
+  }
 }
 
 async function submitBackgroundGenerationTask(opts: CallApiOptions, taskId: string): Promise<BackgroundImageTask> {

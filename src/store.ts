@@ -31,6 +31,7 @@ import {
 import { normalizeCaughtError } from './lib/error'
 import { validateMaskMatchesImage } from './lib/canvasImage'
 import { localizeKnownError } from './lib/localizedError'
+import { clampCountForSettings, isKeyBlockedByTaskLimit } from './lib/keyLimits'
 import { orderInputImagesForMask } from './lib/mask'
 import { normalizeImageSize } from './lib/size'
 import { normalizeLocale, translate, type MessageKey } from './lib/i18n'
@@ -155,6 +156,11 @@ export const useStore = create<AppState>()(
           apiProxy: s.apiProxy ?? st.settings.apiProxy ?? DEFAULT_SETTINGS.apiProxy,
           backgroundTasks: s.backgroundTasks ?? st.settings.backgroundTasks ?? DEFAULT_SETTINGS.backgroundTasks,
           language: normalizeLocale(s.language ?? st.settings.language ?? DEFAULT_SETTINGS.language),
+          keyRole: s.keyRole ?? st.settings.keyRole ?? DEFAULT_SETTINGS.keyRole,
+          keyName: s.keyName ?? st.settings.keyName ?? DEFAULT_SETTINGS.keyName,
+          keyGenerateRemaining: s.keyGenerateRemaining ?? st.settings.keyGenerateRemaining ?? DEFAULT_SETTINGS.keyGenerateRemaining,
+          keyEditRemaining: s.keyEditRemaining ?? st.settings.keyEditRemaining ?? DEFAULT_SETTINGS.keyEditRemaining,
+          keyMaxRunningTasks: s.keyMaxRunningTasks ?? st.settings.keyMaxRunningTasks ?? DEFAULT_SETTINGS.keyMaxRunningTasks,
         },
       })),
       dismissedCodexCliPrompts: [],
@@ -305,6 +311,11 @@ export const useStore = create<AppState>()(
             apiProxy: persistedSettings.apiProxy ?? DEFAULT_SETTINGS.apiProxy,
             backgroundTasks: persistedSettings.backgroundTasks ?? DEFAULT_SETTINGS.backgroundTasks,
             language: normalizeLocale(persistedSettings.language ?? DEFAULT_SETTINGS.language),
+            keyRole: persistedSettings.keyRole ?? DEFAULT_SETTINGS.keyRole,
+            keyName: persistedSettings.keyName ?? DEFAULT_SETTINGS.keyName,
+            keyGenerateRemaining: persistedSettings.keyGenerateRemaining ?? DEFAULT_SETTINGS.keyGenerateRemaining,
+            keyEditRemaining: persistedSettings.keyEditRemaining ?? DEFAULT_SETTINGS.keyEditRemaining,
+            keyMaxRunningTasks: persistedSettings.keyMaxRunningTasks ?? DEFAULT_SETTINGS.keyMaxRunningTasks,
           },
         }
       },
@@ -328,6 +339,11 @@ function exportableSettings(settings: AppSettings): AppSettings {
     ...settings,
     baseUrl: '',
     apiKey: '',
+    keyRole: null,
+    keyName: '',
+    keyGenerateRemaining: null,
+    keyEditRemaining: null,
+    keyMaxRunningTasks: null,
   }
 }
 
@@ -359,6 +375,7 @@ function normalizeParamsForSettings(params: TaskParams, settings: AppSettings): 
     ...params,
     size: normalizeImageSize(params.size) || DEFAULT_PARAMS.size,
     quality: settings.codexCli ? DEFAULT_PARAMS.quality : params.quality,
+    n: clampCountForSettings(Number(params.n) || DEFAULT_PARAMS.n, settings),
   }
 }
 
@@ -410,6 +427,10 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
   if (!settings.apiKey) {
     showToast(tStore('store.apiKeyRequired'), 'error')
     useStore.getState().setShowSettings(true)
+    return
+  }
+  if (isKeyBlockedByTaskLimit(settings)) {
+    showToast(tStore('store.keyTaskLimitZero'), 'error')
     return
   }
 
