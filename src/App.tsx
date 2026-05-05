@@ -1,7 +1,8 @@
-import { useEffect } from 'react'
+﻿import { useEffect } from 'react'
 import { initStore } from './store'
 import { useStore } from './store'
-import { fetchBackendKeyProfile } from './lib/api'
+import { fetchBackendKeyProfile, normalizeBaseUrl } from './lib/api'
+import { useDockerApiUrlMigrationNotice } from './hooks/useDockerApiUrlMigrationNotice'
 import type { ApiMode } from './types'
 import Header from './components/Header'
 import SearchBar from './components/SearchBar'
@@ -20,9 +21,21 @@ export default function App() {
   const settings = useStore((s) => s.settings)
   const language = useStore((s) => s.settings.language)
 
+  useDockerApiUrlMigrationNotice()
+
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search)
-    const nextSettings: { codexCli?: boolean; apiMode?: ApiMode } = {}
+    const nextSettings: { baseUrl?: string; apiKey?: string; codexCli?: boolean; apiMode?: ApiMode } = {}
+
+    const apiUrlParam = searchParams.get('apiUrl')
+    if (apiUrlParam !== null) {
+      nextSettings.baseUrl = normalizeBaseUrl(apiUrlParam.trim())
+    }
+
+    const apiKeyParam = searchParams.get('apiKey')
+    if (apiKeyParam !== null) {
+      nextSettings.apiKey = apiKeyParam.trim()
+    }
 
     const codexCliParam = searchParams.get('codexCli')
     if (codexCliParam !== null) {

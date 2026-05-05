@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useEffect, useMemo, useRef, useState } from 'react'
 import { calculateImageSize, normalizeImageSize, parseRatio, type SizeTier } from '../lib/size'
 import { useI18n } from '../hooks/useI18n'
 import ViewportTooltip from './ViewportTooltip'
@@ -19,6 +19,7 @@ interface Props {
   currentSize: string
   onSelect: (size: string) => void
   onClose: () => void
+  allowAuto?: boolean
 }
 
 type Mode = 'auto' | 'ratio' | 'resolution'
@@ -41,23 +42,20 @@ function findPresetForSize(size: string) {
   return null
 }
 
-export default function SizePickerModal({ currentSize, onSelect, onClose }: Props) {
+export default function SizePickerModal({ currentSize, onSelect, onClose, allowAuto = true }: Props) {
   const { t } = useI18n()
   const sizeLimitText = t('size.limitText')
   const currentPreset = findPresetForSize(currentSize)
   const currentParsedSize = parseSize(currentSize)
   const [mode, setMode] = useState<Mode>(() => {
-    if (!currentSize || currentSize === 'auto') return 'auto'
+    if (!currentSize || currentSize === 'auto') return allowAuto ? 'auto' : 'ratio'
     if (currentPreset) return 'ratio'
     return 'resolution'
   })
 
-  // Ratio mode state
   const [tier, setTier] = useState<SizeTier>(currentPreset?.tier ?? '1K')
-  const [ratio, setRatio] = useState(currentPreset?.ratio ?? '1:1')
+  const [ratio, setRatio] = useState(currentPreset?.ratio ?? (allowAuto ? '1:1' : '4:3'))
   const [customRatio, setCustomRatio] = useState('16:9')
-
-  // Resolution mode state
   const [customW, setCustomW] = useState(currentParsedSize?.width ?? '1024')
   const [customH, setCustomH] = useState(currentParsedSize?.height ?? '1024')
 
@@ -79,12 +77,12 @@ export default function SizePickerModal({ currentSize, onSelect, onClose }: Prop
 
   const previewSize = useMemo(() => {
     if (mode === 'auto') return 'auto'
-    
+
     if (mode === 'ratio') {
       const size = calculateImageSize(tier, activeRatio)
       return size ? normalizeImageSize(size) : ''
     }
-    
+
     if (mode === 'resolution') {
       const w = parseInt(customW, 10)
       const h = parseInt(customH, 10)
@@ -93,7 +91,7 @@ export default function SizePickerModal({ currentSize, onSelect, onClose }: Prop
       }
       return ''
     }
-    
+
     return ''
   }, [mode, tier, activeRatio, customW, customH])
 
@@ -151,7 +149,7 @@ export default function SizePickerModal({ currentSize, onSelect, onClose }: Prop
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">{t('size.title')}</h3>
-            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{t('common.current', { value: currentSize || 'auto' })}</p>
+            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{t('common.current', { value: currentSize || (allowAuto ? 'auto' : '') })}</p>
           </div>
           <button
             onClick={onClose}
@@ -166,12 +164,14 @@ export default function SizePickerModal({ currentSize, onSelect, onClose }: Prop
 
         <div className="space-y-6">
           <div className="flex rounded-xl bg-gray-100/80 p-1 dark:bg-white/[0.04]">
-            <button
-              onClick={() => setMode('auto')}
-              className={`flex-1 rounded-lg py-1.5 text-sm font-medium transition ${mode === 'auto' ? 'bg-white text-gray-800 shadow-sm dark:bg-gray-700 dark:text-gray-100' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
-            >
-              {t('size.auto')}
-            </button>
+            {allowAuto && (
+              <button
+                onClick={() => setMode('auto')}
+                className={`flex-1 rounded-lg py-1.5 text-sm font-medium transition ${mode === 'auto' ? 'bg-white text-gray-800 shadow-sm dark:bg-gray-700 dark:text-gray-100' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
+              >
+                {t('size.auto')}
+              </button>
+            )}
             <button
               onClick={() => setMode('ratio')}
               className={`flex-1 rounded-lg py-1.5 text-sm font-medium transition ${mode === 'ratio' ? 'bg-white text-gray-800 shadow-sm dark:bg-gray-700 dark:text-gray-100' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
@@ -196,7 +196,7 @@ export default function SizePickerModal({ currentSize, onSelect, onClose }: Prop
                     </svg>
                   </div>
                   <h4 className="text-sm font-medium text-gray-800 dark:text-gray-200">{t('size.autoTitle')}</h4>
-                  <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{t('size.autoDescLine1')}<br/>{t('size.autoDescLine2')}</p>
+                  <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{t('size.autoDescLine1')}<br />{t('size.autoDescLine2')}</p>
                 </div>
               </div>
             )}

@@ -1,9 +1,23 @@
-import { getDefaultLocale, type Locale } from './lib/i18n'
+﻿import { getDefaultLocale, type Locale } from './lib/i18n'
 
 // ===== 设置 =====
 
 export type ApiMode = 'images' | 'responses'
+export type ApiProvider = 'openai' | 'fal'
 export type KeyRole = 'admin' | 'user'
+
+export interface ApiProfile {
+  id: string
+  name: string
+  provider: ApiProvider
+  baseUrl: string
+  apiKey: string
+  model: string
+  timeout: number
+  apiMode: ApiMode
+  codexCli: boolean
+  apiProxy: boolean
+}
 
 export interface AppSettings {
   baseUrl: string
@@ -14,7 +28,10 @@ export interface AppSettings {
   codexCli: boolean
   apiProxy: boolean
   backgroundTasks: boolean
+  clearInputAfterSubmit: boolean
   language: Locale
+  profiles: ApiProfile[]
+  activeProfileId: string
   keyRole: KeyRole | null
   keyName: string
   keyGenerateRemaining: number | null
@@ -24,6 +41,7 @@ export interface AppSettings {
 
 const DEFAULT_BASE_URL = import.meta.env.VITE_DEFAULT_API_URL?.trim() || 'https://api.openai.com/v1'
 const DEFAULT_BACKGROUND_TASKS = !/\/\/api\.openai\.com(?:\/|$)/i.test(DEFAULT_BASE_URL)
+const DEFAULT_OPENAI_PROFILE_ID = 'default-openai'
 export const DEFAULT_IMAGES_MODEL = 'gpt-image-2'
 export const DEFAULT_RESPONSES_MODEL = 'gpt-5.5'
 
@@ -36,7 +54,23 @@ export const DEFAULT_SETTINGS: AppSettings = {
   codexCli: false,
   apiProxy: false,
   backgroundTasks: DEFAULT_BACKGROUND_TASKS,
+  clearInputAfterSubmit: false,
   language: getDefaultLocale(),
+  profiles: [
+    {
+      id: DEFAULT_OPENAI_PROFILE_ID,
+      name: 'Default',
+      provider: 'openai',
+      baseUrl: DEFAULT_BASE_URL,
+      apiKey: '',
+      model: DEFAULT_IMAGES_MODEL,
+      timeout: 300,
+      apiMode: 'images',
+      codexCli: false,
+      apiProxy: false,
+    },
+  ],
+  activeProfileId: DEFAULT_OPENAI_PROFILE_ID,
   keyRole: null,
   keyName: '',
   keyGenerateRemaining: null,
@@ -67,9 +101,7 @@ export const DEFAULT_PARAMS: TaskParams = {
 // ===== 输入图片（UI 层面） =====
 
 export interface InputImage {
-  /** IndexedDB image store 的 id（SHA-256 hash） */
   id: string
-  /** data URL，用于预览 */
   dataUrl: string
 }
 
@@ -97,32 +129,27 @@ export interface TaskRecord {
   id: string
   prompt: string
   params: TaskParams
-  /** API 返回的实际生效参数，用于标记与请求值不一致的情况 */
+  apiProvider?: ApiProvider
+  apiProfileName?: string
+  apiModel?: string
+  falRequestId?: string
+  falEndpoint?: string
+  falRecoverable?: boolean
   actualParams?: Partial<TaskParams>
-  /** 输出图片对应的实际生效参数，key 为 outputImages 中的图片 id */
   actualParamsByImage?: Record<string, Partial<TaskParams>>
-  /** 输出图片对应的 API 改写提示词，key 为 outputImages 中的图片 id */
   revisedPromptByImage?: Record<string, string>
-  /** 输入图片的 image store id 列表 */
   inputImageIds: string[]
   maskTargetImageId?: string | null
   maskImageId?: string | null
-  /** 输出图片的 image store id 列表 */
   outputImages: string[]
-  /** chatgpt2api backend async image task ids, used to resume polling after refresh/background */
   backgroundTaskIds?: string[]
   status: TaskStatus
-  /** Short, user-friendly error summary shown in the UI */
   error: string | null
-  /** Raw API/browser error detail for copy/debug */
   errorDetail?: string | null
-  /** Normalized error category for frontend actions */
   errorKind?: TaskErrorKind | null
   createdAt: number
   finishedAt: number | null
-  /** 总耗时毫秒 */
   elapsed: number | null
-  /** 是否收藏 */
   isFavorite?: boolean
 }
 
@@ -131,9 +158,7 @@ export interface TaskRecord {
 export interface StoredImage {
   id: string
   dataUrl: string
-  /** 图片首次存储时间（ms） */
   createdAt?: number
-  /** 图片来源：用户上传 / API 生成 / 遮罩 */
   source?: 'upload' | 'generated' | 'mask'
 }
 
@@ -201,15 +226,31 @@ export interface ResponsesApiResponse {
   }>
 }
 
+export interface FalImageFile {
+  url?: string
+  content_type?: string
+  file_name?: string
+  width?: number
+  height?: number
+  b64_json?: string
+  base64?: string
+  data?: string
+}
+
+export interface FalApiResponse {
+  images?: FalImageFile[]
+  image?: FalImageFile | string
+  url?: string
+  seed?: number
+}
+
 // ===== 导出数据 =====
 
-/** ZIP manifest.json 格式 */
 export interface ExportData {
   version: number
   exportedAt: string
   settings: AppSettings
   tasks: TaskRecord[]
-  /** imageId → 图片信息 */
   imageFiles: Record<string, {
     path: string
     createdAt?: number
