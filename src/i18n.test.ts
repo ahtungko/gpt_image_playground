@@ -1,23 +1,25 @@
 import { describe, expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import headerSource from './components/Header.tsx?raw'
+import imageContextMenuSource from './components/ImageContextMenu.tsx?raw'
 import settingsModalSource from './components/SettingsModal.tsx?raw'
 import sizePickerModalSource from './components/SizePickerModal.tsx?raw'
+import selectSource from './components/Select.tsx?raw'
 import taskCardSource from './components/TaskCard.tsx?raw'
+import taskGridSource from './components/TaskGrid.tsx?raw'
 import detailModalSource from './components/DetailModal.tsx?raw'
 import confirmDialogSource from './components/ConfirmDialog.tsx?raw'
 import inputBarSource from './components/InputBar.tsx?raw'
 import { translate, type MessageKey } from './lib/i18n'
 import { inlineTranslate } from './lib/inlineI18n'
 
-const componentFiles = [
-  'src/components/ConfirmDialog.tsx',
-  'src/components/Header.tsx',
-  'src/components/ImageContextMenu.tsx',
-  'src/components/InputBar.tsx',
-  'src/components/SettingsModal.tsx',
-  'src/components/Select.tsx',
-  'src/components/TaskGrid.tsx',
+const componentSources: Array<[string, string]> = [
+  ['src/components/ConfirmDialog.tsx', confirmDialogSource],
+  ['src/components/Header.tsx', headerSource],
+  ['src/components/ImageContextMenu.tsx', imageContextMenuSource],
+  ['src/components/InputBar.tsx', inputBarSource],
+  ['src/components/SettingsModal.tsx', settingsModalSource],
+  ['src/components/Select.tsx', selectSource],
+  ['src/components/TaskGrid.tsx', taskGridSource],
 ]
 
 describe('i18n wiring', () => {
@@ -81,8 +83,7 @@ describe('i18n wiring', () => {
   it('does not leave hardcoded Chinese UI text in primary components', () => {
     const offenders: string[] = []
 
-    for (const file of componentFiles) {
-      const source = readFileSync(join(process.cwd(), file), 'utf8')
+    for (const [file, source] of componentSources) {
       let inCustomProviderPrompt = false
       source.split(/\r?\n/).forEach((line, index) => {
         if (line.includes('const CUSTOM_PROVIDER_LLM_PROMPT')) inCustomProviderPrompt = true
