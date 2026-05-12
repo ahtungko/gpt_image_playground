@@ -4,9 +4,13 @@ import { useStore, submitTask, addImageFromFile, updateTaskInStore, removeMultip
 import { DEFAULT_PARAMS } from '../types'
 import { getActiveApiProfile, normalizeSettings } from '../lib/apiProfiles'
 import { DEFAULT_FAL_IMAGE_SIZE, getChangedParams, getOutputImageLimitForSettings, normalizeParamsForSettings } from '../lib/paramCompatibility'
+import { getMaxSelectableCount, isKeyBlockedByQuota, isKeyBlockedByTaskLimit } from '../lib/keyLimits'
 import { getAtImageQuery, getImageMentionLabel, getPromptIndexFromVisibleIndex, getPromptMentionParts, getSelectedImageMentionLabel, imageMentionMatches, insertImageMentionAtVisibleRange, isCursorInSelectedImageMention, stripImageMentionMarkers } from '../lib/promptImageMentions'
 import { normalizeImageSize } from '../lib/size'
 import { createMaskPreviewDataUrl } from '../lib/canvasImage'
+import { localizeKnownError } from '../lib/localizedError'
+import { POPULAR_PROMPTS } from '../lib/popularPrompts'
+import { useI18n } from '../hooks/useI18n'
 import { dismissAllTooltips } from '../lib/tooltipDismiss'
 import { getSafeBoundingClientRect } from '../lib/domRect'
 import Select from './Select'
@@ -270,6 +274,7 @@ function useIsMobile() {
 }
 
 export default function InputBar() {
+  const { locale, t } = useI18n()
   const prompt = useStore((s) => s.prompt)
   const setPrompt = useStore((s) => s.setPrompt)
   const inputImages = useStore((s) => s.inputImages)
@@ -461,17 +466,20 @@ export default function InputBar() {
       ? settings
       : normalizeSettings({ ...settings, activeProfileId: activeProfile.id })
   ), [activeProfile.id, currentActiveProfile.id, settings])
+  const isEditMode = inputImages.length > 0 || Boolean(maskDraft)
   const hasSubmitApiConfig = Boolean(activeProfile.apiKey)
-  const canSubmit = Boolean(prompt.trim() && hasSubmitApiConfig)
+  const keyBlockedByTaskLimit = isKeyBlockedByTaskLimit(effectiveSettings, tasks)
+  const keyBlockedByQuota = isKeyBlockedByQuota(effectiveSettings, { isEdit: isEditMode })
+  const canSubmit = Boolean(prompt.trim() && hasSubmitApiConfig && !keyBlockedByTaskLimit && !keyBlockedByQuota)
   const activeProvider = activeProfile.provider
   const isFalProvider = activeProvider === 'fal'
   const moderationDisabled = activeProfile.apiMode === 'responses' || isFalProvider
   const compressionDisabled = params.output_format === 'png' || isFalProvider
-  const outputImageLimit = getOutputImageLimitForSettings(effectiveSettings)
+  const providerOutputImageLimit = getOutputImageLimitForSettings(effectiveSettings)
+  const keyOutputImageLimit = getMaxSelectableCount(effectiveSettings, tasks, { isEdit: isEditMode })
+  const outputImageLimit = Math.min(providerOutputImageLimit, keyOutputImageLimit)
   const isFalTextToImage = isFalProvider && inputImages.length === 0
-  const nLimitHintText = isFalProvider
-    ? `fal.ai 最大请求数量为 ${outputImageLimit}`
-    : `OpenAI 最大请求数量为 ${outputImageLimit}`
+  const nLimitHintText = `最大请求数量为 ${outputImageLimit}`
   const displaySize = isFalTextToImage && params.size === 'auto'
     ? DEFAULT_FAL_IMAGE_SIZE
     : normalizeImageSize(params.size) || DEFAULT_PARAMS.size
@@ -494,6 +502,22 @@ export default function InputBar() {
   const referenceImages = maskTargetImage
     ? inputImages.filter((img) => img.id !== maskTargetImage.id)
     : inputImages
+  const popularPrompts = POPULAR_PROMPTS[locale]
+
+  const applyPopularPrompt = useCallback(
+    (nextPrompt: string) => {
+      isUserInputRef.current = false
+      setPrompt(nextPrompt)
+      window.setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus()
+          setContentEditableCursor(textareaRef.current, nextPrompt.length)
+        }
+      }, 0)
+    },
+    [setPrompt],
+  )
+
   const cursorPosition = cursorPos
   const visiblePrompt = stripImageMentionMarkers(prompt)
   const atImageQuery = isCursorInSelectedImageMention(prompt, cursorPosition)
@@ -821,7 +845,7 @@ export default function InputBar() {
       const currentCount = useStore.getState().inputImages.length
       if (currentCount >= API_MAX_IMAGES) {
         useStore.getState().showToast(
-          `参考图数量已达上限（${API_MAX_IMAGES} 张），无法继续添加`,
+          t('input.referenceLimit', { max: API_MAX_IMAGES }),
           'error',
         )
         return
@@ -838,13 +862,13 @@ export default function InputBar() {
 
       if (discarded > 0) {
         useStore.getState().showToast(
-          `已达上限 ${API_MAX_IMAGES} 张，${discarded} 张图片被丢弃`,
+          t('input.filesDiscarded', { max: API_MAX_IMAGES, count: discarded }),
           'error',
         )
       }
     } catch (err) {
       useStore.getState().showToast(
-        `图片添加失败：${err instanceof Error ? err.message : String(err)}`,
+        t('input.imageAddFailed', { error: localizeKnownError(err, locale) }),
         'error',
       )
     }
@@ -1835,6 +1859,25 @@ export default function InputBar() {
             />
           </div>
 
+          <div className="mt-2">
+            <div className="mb-1.5 text-xs text-gray-500 dark:text-gray-400">
+              {t('input.popularPrompts')}
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-gray-300/70 dark:scrollbar-thumb-white/[0.12] scrollbar-track-transparent">
+              {popularPrompts.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  title={item.prompt}
+                  onClick={() => applyPopularPrompt(item.prompt)}
+                  className="shrink-0 rounded-full border border-gray-200/70 bg-white/80 px-3 py-1.5 text-left text-xs text-gray-700 transition-colors hover:border-blue-300 hover:bg-blue-50 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-gray-200 dark:hover:border-blue-400/60 dark:hover:bg-blue-500/10"
+                >
+                  {item.title}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* 参数 + 按钮 */}
           <div className="mt-3">
             {/* 桌面端布局 */}
@@ -1868,6 +1911,8 @@ export default function InputBar() {
                   onMouseLeave={() => setSubmitHover(false)}
                 >
                   <ButtonTooltip visible={!hasSubmitApiConfig && submitHover} text="尚未完成 API 配置，请在右上角设置中进行" />
+                  <ButtonTooltip visible={keyBlockedByTaskLimit && submitHover} text={t('input.keyTaskLimitZero')} />
+                  <ButtonTooltip visible={keyBlockedByQuota && submitHover} text={t('input.keyQuotaReached')} />
                   <button
                     onClick={() => hasSubmitApiConfig ? submitTask() : setShowSettings(true)}
                     disabled={hasSubmitApiConfig ? !canSubmit : false}
@@ -1922,6 +1967,8 @@ export default function InputBar() {
                   onMouseLeave={() => setSubmitHover(false)}
                 >
                   <ButtonTooltip visible={!hasSubmitApiConfig && submitHover} text="尚未完成 API 配置，请在右上角设置中进行" />
+                  <ButtonTooltip visible={keyBlockedByTaskLimit && submitHover} text={t('input.keyTaskLimitZero')} />
+                  <ButtonTooltip visible={keyBlockedByQuota && submitHover} text={t('input.keyQuotaReached')} />
                   <button
                     onClick={() => hasSubmitApiConfig ? submitTask() : setShowSettings(true)}
                     disabled={hasSubmitApiConfig ? !canSubmit : false}
