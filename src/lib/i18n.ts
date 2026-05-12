@@ -311,10 +311,16 @@ const en = {
   'store.exportFailed': 'Export failed: {error}',
   'store.zipMissingManifest': 'ZIP is missing manifest.json',
   'store.invalidDataFormat': 'Invalid data format',
+  'store.dataImported': 'Data imported successfully',
   'store.importedRecords': 'Imported {count} record(s)',
   'store.configImported': 'Config imported successfully',
   'store.importFailed': 'Import failed: {error}',
   'store.invalidImage': 'Not a valid image',
+  'store.networkHintProxyUnavailable': 'Hint: the request failed immediately. Check whether the API proxy service is running correctly.',
+  'store.networkHintCors': 'Hint: this API may not support browser CORS requests. Enable API proxy to work around it.',
+  'store.networkHintNginxTimeout': 'Hint: the request was cut off after about 60 seconds. This is usually a reverse-proxy timeout such as Nginx, not the API itself. Increase the proxy timeout (for example proxy_read_timeout), or retry with smaller image size/quality.',
+  'store.networkHintCloudflareTimeout': 'Hint: the request was cut off after about 120 seconds. This is usually a CDN or gateway timeout such as Cloudflare, not the API itself. If you use Cloudflare, consider a higher plan or a direct non-CDN endpoint.',
+  'store.networkHintGatewayTimeout': 'Hint: the request was cut off after a long wait. This is usually a reverse-proxy or gateway timeout rather than an API error. Check proxy timeout settings, or retry with smaller image size/quality.',
   'clipboard.embeddedPermission': 'Copy failed: embedded page has not granted clipboard permission',
 } as const
 
@@ -629,10 +635,16 @@ const zh: Record<MessageKey, string> = {
   'store.exportFailed': '导出失败：{error}',
   'store.zipMissingManifest': 'ZIP 中缺少 manifest.json',
   'store.invalidDataFormat': '无效的数据格式',
+  'store.dataImported': '数据已成功导入',
   'store.importedRecords': '已导入 {count} 条记录',
   'store.configImported': '配置已成功导入',
   'store.importFailed': '导入失败：{error}',
   'store.invalidImage': '不是有效的图片',
+  'store.networkHintProxyUnavailable': '提示：请求立即失败，请检查 API 代理服务是否正常运行。',
+  'store.networkHintCors': '提示：接口可能不支持浏览器跨域请求，可开启 API 代理解决。',
+  'store.networkHintNginxTimeout': '提示：请求等待约 60 秒后被断开，这通常是 Nginx 等反向代理的默认超时，而非接口本身报错。可调大代理的超时时间（如 proxy_read_timeout），或降低图片尺寸/质量后重试。',
+  'store.networkHintCloudflareTimeout': '提示：请求等待约 120 秒后被断开，这通常是 Cloudflare 等 CDN/网关的超时限制，而非接口本身报错。如果使用 Cloudflare，可考虑升级套餐或使用不经过 CDN 的直连地址。',
+  'store.networkHintGatewayTimeout': '提示：请求等待较长时间后被断开，通常是反向代理或网关的超时限制，而非接口本身报错。可检查代理超时设置，或降低图片尺寸/质量后重试。',
   'clipboard.embeddedPermission': '复制失败：内嵌页面未授予剪贴板权限',
 }
 

@@ -45,6 +45,7 @@ import { orderInputImagesForMask } from './lib/mask'
 import { getChangedParams, normalizeParamsForSettings } from './lib/paramCompatibility'
 import { clampCountForSettings, getAvailableTaskSlots, isKeyBlockedByQuota, isKeyBlockedByTaskLimit } from './lib/keyLimits'
 import { normalizeCaughtError } from './lib/error'
+import { translate, type Locale, type MessageKey } from './lib/i18n'
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate'
 
 // ===== Image cache =====
@@ -65,10 +66,15 @@ const SUPPORT_PROMPT_IMAGE_THRESHOLD = 50
 const falRecoveryTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const customRecoveryTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const openAIWatchdogTimers = new Map<string, ReturnType<typeof setTimeout>>()
-const OPENAI_INTERRUPTED_ERROR = '请求中断'
 
-function createOpenAITimeoutError(timeoutSeconds: number) {
-  return `请求超时：超过 ${timeoutSeconds} 秒仍未完成，请稍后重试或提高超时时间。`
+type TranslationValues = Record<string, string | number | boolean | null | undefined>
+
+function tLocale(locale: Locale | undefined, key: MessageKey, values: TranslationValues = {}) {
+  return translate(locale, key, values)
+}
+
+function createOpenAITimeoutError(locale: Locale | undefined, timeoutSeconds: number) {
+  return tLocale(locale, 'store.requestTimeoutDetail', { seconds: timeoutSeconds })
 }
 
 export function getCachedImage(id: string): string | undefined {
@@ -705,7 +711,7 @@ function isAsyncCustomProviderTask(settings: AppSettings, provider: string, hasI
   return Boolean(submitMapping.taskIdPath)
 }
 
-export function markInterruptedOpenAIRunningTasks(tasks: TaskRecord[], now = Date.now()) {
+export function markInterruptedOpenAIRunningTasks(tasks: TaskRecord[], locale: Locale | undefined, now = Date.now()) {
   const interruptedTasks: TaskRecord[] = []
   const updatedTasks = tasks.map((task) => {
     if (!isRunningOpenAITask(task) || task.customTaskId || task.backgroundTaskIds?.length) return task
@@ -713,7 +719,7 @@ export function markInterruptedOpenAIRunningTasks(tasks: TaskRecord[], now = Dat
     const updated: TaskRecord = {
       ...task,
       status: 'error',
-      error: OPENAI_INTERRUPTED_ERROR,
+      error: tLocale(locale, 'store.requestInterrupted'),
       falRecoverable: false,
       finishedAt: now,
       elapsed: Math.max(0, now - task.createdAt),
@@ -754,22 +760,26 @@ function scheduleOpenAIWatchdog(taskId: string, timeoutSeconds: number) {
   const remainingMs = Math.max(0, timeoutMs - (Date.now() - task.createdAt))
   const timer = setTimeout(() => {
     openAIWatchdogTimers.delete(taskId)
-    const failed = failOpenAITaskIfStillRunning(taskId, createOpenAITimeoutError(timeoutSeconds))
-    if (failed) useStore.getState().showToast('OpenAI 任务请求超时', 'error')
+    const locale = useStore.getState().settings.language
+    const failed = failOpenAITaskIfStillRunning(taskId, createOpenAITimeoutError(locale, timeoutSeconds))
+    if (failed) useStore.getState().showToast(tLocale(locale, 'store.openaiTimeoutToast'), 'error')
   }, remainingMs)
   openAIWatchdogTimers.set(taskId, timer)
 }
 
-export function showCodexCliPrompt(force = false, reason = '接口返回的提示词已被改写') {
+export function showCodexCliPrompt(force = false, reason?: string) {
   const state = useStore.getState()
   const settings = state.settings
+  const locale = settings.language
   const promptKey = getCodexCliPromptKey(settings)
   if (!force && (settings.codexCli || state.dismissedCodexCliPrompts.includes(promptKey))) return
 
   state.setConfirmDialog({
-    title: '检测到 Codex CLI API',
-    message: `${reason}，当前 API 来源很可能是 Codex CLI。\n\n是否开启 Codex CLI 兼容模式？开启后会禁用在此处无效的质量参数，并在 Images API 多图生成时使用并发请求，解决该 API 数量参数无效的问题。同时，提示词文本开头会加入简短的不改写要求，避免模型重写提示词，偏离原意。`,
-    confirmText: '开启',
+    title: tLocale(locale, 'store.codexDetectedTitle'),
+    message: tLocale(locale, 'store.codexDetectedMessage', {
+      reason: reason ?? tLocale(locale, 'store.codexReasonPromptRevised'),
+    }),
+    confirmText: tLocale(locale, 'common.enable'),
     action: () => {
       const state = useStore.getState()
       state.dismissCodexCliPrompt(promptKey)
@@ -857,8 +867,8 @@ function getReusedTaskApiProfile(settings: AppSettings, profileId: string | null
   return normalizeSettings(settings).profiles.find((profile) => profile.id === profileId) ?? null
 }
 
-function getTaskApiProfileName(task: TaskRecord) {
-  return task.apiProfileName || task.apiModel || '未知配置'
+function getTaskApiProfileName(task: TaskRecord, locale: Locale | undefined) {
+  return task.apiProfileName || task.apiModel || tLocale(locale, 'common.unknown')
 }
 
 function isFalConnectionRecoverableError(err: unknown) {
@@ -881,23 +891,24 @@ function getApiRequestNetworkErrorHint(err: unknown, task: TaskRecord, settings:
   const profile = getTaskApiProfile(settings, task)
   const elapsedSeconds = Math.max(0, (Date.now() - task.createdAt) / 1000)
   const usesApiProxy = profile?.apiProxy ?? settings.apiProxy
+  const locale = settings.language
 
   if (elapsedSeconds <= 15) {
     if (usesApiProxy) {
-      return '提示：请求立即失败，请检查 API 代理服务是否正常运行。'
+      return tLocale(locale, 'store.networkHintProxyUnavailable')
     }
-    return '提示：接口可能不支持浏览器跨域请求，可开启 API 代理解决。'
+    return tLocale(locale, 'store.networkHintCors')
   }
 
   if (elapsedSeconds >= 55 && elapsedSeconds <= 75) {
-    return '提示：请求等待约 60 秒后被断开，这通常是 Nginx 等反向代理的默认超时，而非接口本身报错。可调大代理的超时时间（如 proxy_read_timeout），或降低图片尺寸/质量后重试。'
+    return tLocale(locale, 'store.networkHintNginxTimeout')
   }
 
   if (elapsedSeconds >= 110 && elapsedSeconds <= 140) {
-    return '提示：请求等待约 120 秒后被断开，这通常是 Cloudflare 等 CDN/网关的超时限制，而非接口本身报错。如果使用 Cloudflare，可考虑升级套餐或使用不经过 CDN 的直连地址。'
+    return tLocale(locale, 'store.networkHintCloudflareTimeout')
   }
 
-  return '提示：请求等待较长时间后被断开，通常是反向代理或网关的超时限制，而非接口本身报错。可检查代理超时设置，或降低图片尺寸/质量后重试。'
+  return tLocale(locale, 'store.networkHintGatewayTimeout')
 }
 
 function getRawErrorPayload(err: unknown): Pick<Partial<TaskRecord>, 'rawImageUrls' | 'rawResponsePayload'> {
@@ -1002,6 +1013,7 @@ async function resolveImageSizeParamsList(
 async function completeRecoveredFalTask(task: TaskRecord, result: Awaited<ReturnType<typeof getFalQueuedImageResult>>) {
   const latest = useStore.getState().tasks.find((item) => item.id === task.id)
   if (!latest || latest.status === 'done') return
+  const locale = useStore.getState().settings.language
 
   const actualParamsList = await resolveImageSizeParamsList(result.images, result.actualParamsList)
   const outputIds: string[] = []
@@ -1022,7 +1034,7 @@ async function completeRecoveredFalTask(task: TaskRecord, result: Awaited<Return
     finishedAt: Date.now(),
     elapsed: Date.now() - task.createdAt,
   })
-  useStore.getState().showToast(`fal.ai 任务已恢复，共 ${outputIds.length} 张图片`, 'success')
+  useStore.getState().showToast(tLocale(locale, 'store.falRecoveryRestored', { count: outputIds.length }), 'success')
 }
 
 async function recoverFalTask(taskId: string) {
@@ -1062,7 +1074,7 @@ async function recoverFalTask(taskId: string) {
 /** 初始化：从 IndexedDB 加载任务，按需恢复输入图片，并清理孤立图片 */
 export async function initStore() {
   const storedTasks = await getAllTasks()
-  const { tasks, interruptedTasks } = markInterruptedOpenAIRunningTasks(storedTasks)
+  const { tasks, interruptedTasks } = markInterruptedOpenAIRunningTasks(storedTasks, useStore.getState().settings.language)
   await Promise.all(interruptedTasks.map((task) => putTask(task)))
   useStore.getState().setTasks(tasks)
   showSupportPromptForExistingLocalData(tasks)
@@ -1131,6 +1143,7 @@ export async function submitTask(options: { allowFullMask?: boolean; useCurrentA
     useStore.getState()
 
   const normalizedSettings = normalizeSettings(settings)
+  const locale = normalizedSettings.language
   let activeProfile = getActiveApiProfile(settings)
   let requestSettings = createSettingsForApiProfile(normalizedSettings, activeProfile)
   if (normalizedSettings.reuseTaskApiProfileTemporarily && (reusedTaskApiProfileId || reusedTaskApiProfileMissing)) {
@@ -1140,13 +1153,16 @@ export async function submitTask(options: { allowFullMask?: boolean; useCurrentA
         useStore.getState().setReusedTaskApiProfile(null)
       } else {
         setConfirmDialog({
-          title: '找不到 API 配置',
-      message: `找不到复用任务所使用的 API 配置「${reusedTaskApiProfileName || '未知配置'}」，要使用当前的 API 配置「${activeProfile.name}」提交任务吗？`,
-      confirmText: '使用当前配置提交',
-      cancelText: '放弃提交',
-      action: () => {
-        void submitTask({ ...options, useCurrentApiProfileWhenReusedMissing: true })
-      },
+          title: tLocale(locale, 'store.apiProfileMissingTitle'),
+          message: tLocale(locale, 'store.apiProfileMissingMessage', {
+            taskProfile: reusedTaskApiProfileName || tLocale(locale, 'common.unknown'),
+            currentProfile: activeProfile.name,
+          }),
+          confirmText: tLocale(locale, 'store.submitWithCurrentProfile'),
+          cancelText: tLocale(locale, 'store.cancelSubmit'),
+          action: () => {
+            void submitTask({ ...options, useCurrentApiProfileWhenReusedMissing: true })
+          },
         })
         return
       }
@@ -1156,14 +1172,15 @@ export async function submitTask(options: { allowFullMask?: boolean; useCurrentA
     }
   }
 
-  if (validateApiProfile(activeProfile)) {
-    showToast(`请先完善请求 API 配置：${validateApiProfile(activeProfile)}`, 'error')
+  const profileValidationError = validateApiProfile(activeProfile)
+  if (profileValidationError) {
+    showToast(tLocale(locale, 'store.apiProfileIncomplete', { error: profileValidationError }), 'error')
     useStore.getState().setShowSettings(true)
     return
   }
 
   if (!prompt.trim()) {
-    showToast('请输入提示词', 'error')
+    showToast(tLocale(locale, 'store.promptRequired'), 'error')
     return
   }
 
@@ -1177,9 +1194,9 @@ export async function submitTask(options: { allowFullMask?: boolean; useCurrentA
       const coverage = await validateMaskMatchesImage(maskDraft.maskDataUrl, orderedInputImages[0].dataUrl)
       if (coverage === 'full' && !options.allowFullMask) {
         setConfirmDialog({
-          title: '确认编辑整张图片？',
-          message: '当前遮罩覆盖了整张图片，提交后可能会重绘全部内容。是否继续？',
-          confirmText: '继续提交',
+          title: tLocale(locale, 'store.confirmFullMaskTitle'),
+          message: tLocale(locale, 'store.confirmFullMaskMessage'),
+          confirmText: tLocale(locale, 'store.continueSubmit'),
           tone: 'warning',
           action: () => {
             void submitTask({ allowFullMask: true })
@@ -1207,11 +1224,11 @@ export async function submitTask(options: { allowFullMask?: boolean; useCurrentA
   const currentTasks = useStore.getState().tasks
   const isEdit = orderedInputImages.length > 0
   if (isKeyBlockedByTaskLimit(requestSettings, currentTasks)) {
-    showToast('?? Key ??????????', 'error')
+    showToast(tLocale(locale, 'store.keyTaskLimitZero'), 'error')
     return
   }
   if (isKeyBlockedByQuota(requestSettings, { isEdit })) {
-    showToast('?? Key ????????', 'error')
+    showToast(tLocale(locale, 'store.keyQuotaReached'), 'error')
     return
   }
 
@@ -1234,7 +1251,7 @@ export async function submitTask(options: { allowFullMask?: boolean; useCurrentA
     : undefined
   const availableTaskSlots = getAvailableTaskSlots(requestSettings, currentTasks)
   if (backgroundTaskIds?.length && availableTaskSlots != null && backgroundTaskIds.length > availableTaskSlots) {
-    showToast(`?? Key ???? ${availableTaskSlots} ???????`, 'error')
+    showToast(tLocale(locale, 'store.keyTaskLimitReached', { count: availableTaskSlots }), 'error')
     return
   }
 
@@ -1274,13 +1291,14 @@ export async function submitTask(options: { allowFullMask?: boolean; useCurrentA
 
 async function executeTask(taskId: string) {
   const { settings } = useStore.getState()
+  const locale = settings.language
   const task = useStore.getState().tasks.find((t) => t.id === taskId)
   if (!task) return
   const taskProfile = getTaskApiProfile(settings, task)
   if (!taskProfile && task.apiProfileId) {
     updateTaskInStore(taskId, {
       status: 'error',
-      error: '找不到此任务所使用的 API 配置。',
+      error: tLocale(locale, 'store.apiProfileUsedByTaskMissing'),
       falRecoverable: false,
       customRecoverable: false,
       finishedAt: Date.now(),
@@ -1307,13 +1325,13 @@ async function executeTask(taskId: string) {
     const inputDataUrls: string[] = []
     for (const imgId of task.inputImageIds) {
       const dataUrl = await ensureImageCached(imgId)
-      if (!dataUrl) throw new Error('输入图片已不存在')
+      if (!dataUrl) throw new Error(tLocale(locale, 'store.inputImageMissing'))
       inputDataUrls.push(dataUrl)
     }
     let maskDataUrl: string | undefined
     if (task.maskImageId) {
       maskDataUrl = await ensureImageCached(task.maskImageId)
-      if (!maskDataUrl) throw new Error('遮罩图片已不存在')
+      if (!maskDataUrl) throw new Error(tLocale(locale, 'store.maskImageMissing'))
     }
 
     const callOptions = {
@@ -1379,7 +1397,7 @@ async function executeTask(taskId: string) {
       if (promptWasRevised) {
         showCodexCliPrompt()
       } else if (!hasRevisedPromptValue) {
-        showCodexCliPrompt(false, '接口没有返回官方 API 会返回的部分信息')
+        showCodexCliPrompt(false, tLocale(locale, 'store.codexReasonMissingOfficialInfo'))
       }
     }
 
@@ -1400,7 +1418,7 @@ async function executeTask(taskId: string) {
       customRecoverable: false,
     })
 
-    useStore.getState().showToast(`生成完成，共 ${outputIds.length} 张图片`, 'success')
+    useStore.getState().showToast(tLocale(locale, 'store.generationComplete', { count: outputIds.length }), 'success')
     const currentMask = useStore.getState().maskDraft
     if (
       maskDataUrl &&
@@ -1421,7 +1439,7 @@ async function executeTask(taskId: string) {
     if (latestTask.apiProvider === 'fal' && latestFalRequestInfo && isFalConnectionRecoverableError(err)) {
       updateTaskInStore(taskId, {
         status: 'error',
-        error: '与 fal.ai 的连接已断开，之后会继续查询任务结果。',
+        error: tLocale(locale, 'store.falConnectionQueued'),
         falRequestId: latestFalRequestInfo.requestId,
         falEndpoint: latestFalRequestInfo.endpoint,
         falRecoverable: true,
@@ -1432,7 +1450,7 @@ async function executeTask(taskId: string) {
     } else if (latestCustomTaskInfo && isFalConnectionRecoverableError(err)) {
       updateTaskInStore(taskId, {
         status: 'error',
-        error: '与自定义异步任务的连接已断开，之后会继续查询任务结果。',
+        error: tLocale(locale, 'store.customConnectionQueued'),
         customTaskId: latestCustomTaskInfo.taskId,
         customRecoverable: true,
         finishedAt: Date.now(),
@@ -1514,11 +1532,12 @@ export async function retryTask(task: TaskRecord) {
 export async function reuseConfig(task: TaskRecord) {
   const { settings, setPrompt, setParams, setInputImages, setMaskDraft, clearMaskDraft, showToast, setConfirmDialog, setReusedTaskApiProfile } = useStore.getState()
   const normalizedSettings = normalizeSettings(settings)
+  const locale = normalizedSettings.language
   const currentProfile = getActiveApiProfile(settings)
   const matchedProfile = normalizedSettings.reuseTaskApiProfileTemporarily ? getTaskApiProfile(normalizedSettings, task) : null
   const shouldTemporarilyReuseProfile = Boolean(matchedProfile && matchedProfile.id !== currentProfile.id)
   const missingReusedProfile = normalizedSettings.reuseTaskApiProfileTemporarily && !matchedProfile
-  const taskProfileName = matchedProfile?.name ?? getTaskApiProfileName(task)
+  const taskProfileName = matchedProfile?.name ?? getTaskApiProfileName(task, locale)
   const paramsSettings = shouldTemporarilyReuseProfile && matchedProfile ? createSettingsForApiProfile(normalizedSettings, matchedProfile) : normalizedSettings
 
   setParams(normalizeParamsForSettings(task.params, paramsSettings, { hasInputImages: task.inputImageIds.length > 0 }))
@@ -1556,10 +1575,13 @@ export async function reuseConfig(task: TaskRecord) {
   }
   if (missingReusedProfile) {
     setConfirmDialog({
-      title: '找不到 API 配置',
-      message: `找不到复用任务所使用的 API 配置「${taskProfileName}」，要使用当前的 API 配置「${currentProfile.name}」提交任务吗？`,
-      confirmText: '使用当前配置提交',
-      cancelText: '放弃提交',
+      title: tLocale(locale, 'store.apiProfileMissingTitle'),
+      message: tLocale(locale, 'store.apiProfileMissingMessage', {
+        taskProfile: taskProfileName,
+        currentProfile: currentProfile.name,
+      }),
+      confirmText: tLocale(locale, 'store.submitWithCurrentProfile'),
+      cancelText: tLocale(locale, 'store.cancelSubmit'),
       action: () => {
         void submitTask({ useCurrentApiProfileWhenReusedMissing: true })
       },
@@ -1569,15 +1591,16 @@ export async function reuseConfig(task: TaskRecord) {
 
   showToast(
     shouldTemporarilyReuseProfile && matchedProfile
-      ? `已临时复用该任务的 API 配置「${matchedProfile.name}」`
-      : '已复用配置到输入框',
+      ? tLocale(locale, 'store.temporarilyReusedApiProfile', { name: matchedProfile.name })
+      : tLocale(locale, 'store.reusedConfig'),
     'success',
   )
 }
 
 /** 编辑输出：将输出图加入输入 */
 export async function editOutputs(task: TaskRecord) {
-  const { inputImages, addInputImage, showToast } = useStore.getState()
+  const { inputImages, addInputImage, showToast, settings } = useStore.getState()
+  const locale = settings.language
   if (!task.outputImages?.length) return
 
   let added = 0
@@ -1589,12 +1612,13 @@ export async function editOutputs(task: TaskRecord) {
       added++
     }
   }
-  showToast(`已添加 ${added} 张输出图到输入`, 'success')
+  showToast(tLocale(locale, 'store.outputsAdded', { count: added }), 'success')
 }
 
 /** 删除多条任务 */
 export async function removeMultipleTasks(taskIds: string[]) {
-  const { tasks, setTasks, inputImages, showToast, clearSelection, selectedTaskIds } = useStore.getState()
+  const { tasks, setTasks, inputImages, showToast, clearSelection, selectedTaskIds, settings } = useStore.getState()
+  const locale = settings.language
   
   if (!taskIds.length) return
 
@@ -1640,12 +1664,13 @@ export async function removeMultipleTasks(taskIds: string[]) {
     useStore.getState().setSelectedTaskIds(newSelection)
   }
 
-  showToast(`已删除 ${taskIds.length} 条记录`, 'success')
+  showToast(tLocale(locale, 'store.recordsDeleted', { count: taskIds.length }), 'success')
 }
 
 /** 删除单条任务 */
 export async function removeTask(task: TaskRecord) {
-  const { tasks, setTasks, inputImages, showToast } = useStore.getState()
+  const { tasks, setTasks, inputImages, showToast, settings } = useStore.getState()
+  const locale = settings.language
 
   // 收集此任务关联的图片
   const taskImageIds = new Set([
@@ -1677,7 +1702,7 @@ export async function removeTask(task: TaskRecord) {
     }
   }
 
-  showToast('记录已删除', 'success')
+  showToast(tLocale(locale, 'store.recordDeleted'), 'success')
 }
 
 /** 清空数据选项 */
@@ -1688,7 +1713,8 @@ export interface ClearOptions {
 
 /** 清空数据 */
 export async function clearData(options: ClearOptions = { clearConfig: true, clearTasks: true }) {
-  const { setTasks, clearInputImages, clearMaskDraft, setSettings, setParams, showToast } = useStore.getState()
+  const { setTasks, clearInputImages, clearMaskDraft, setSettings, setParams, showToast, settings } = useStore.getState()
+  const locale = settings.language
 
   if (options.clearTasks) {
     await dbClearTasks()
@@ -1708,7 +1734,7 @@ export async function clearData(options: ClearOptions = { clearConfig: true, cle
     setParams({ ...DEFAULT_PARAMS })
   }
 
-  showToast('所选数据已清空', 'success')
+  showToast(tLocale(locale, 'store.selectedDataCleared'), 'success')
 }
 
 /** 从 dataUrl 解析出 MIME 扩展名和二进制数据 */
@@ -1750,6 +1776,7 @@ function bytesToDataUrl(bytes: Uint8Array, filePath: string): string {
 async function completeRecoveredCustomTask(task: TaskRecord, result: Awaited<ReturnType<typeof getCustomQueuedImageResult>>) {
   const latest = useStore.getState().tasks.find((item) => item.id === task.id)
   if (!latest || latest.status === 'done') return
+  const locale = useStore.getState().settings.language
 
   const actualParamsList = await readImageSizeParamsList(result.images)
   const outputIds: string[] = []
@@ -1770,7 +1797,7 @@ async function completeRecoveredCustomTask(task: TaskRecord, result: Awaited<Ret
     finishedAt: Date.now(),
     elapsed: Date.now() - task.createdAt,
   })
-  useStore.getState().showToast(`自定义异步任务已恢复，共 ${outputIds.length} 张图片`, 'success')
+  useStore.getState().showToast(tLocale(locale, 'store.customRecoveryRestored', { count: outputIds.length }), 'success')
 }
 
 async function recoverCustomTask(taskId: string) {
@@ -1819,6 +1846,7 @@ export async function exportData(options: ExportOptions = { exportConfig: true, 
     const tasks = options.exportTasks ? await getAllTasks() : []
     const images = options.exportTasks ? await getAllImages() : []
     const { settings } = useStore.getState()
+    const locale = settings.language
     const exportedAt = Date.now()
     const imageCreatedAtFallback = new Map<string, number>()
 
@@ -1900,12 +1928,13 @@ export async function exportData(options: ExportOptions = { exportConfig: true, 
     a.download = `gpt-image-playground-${formatExportFileTime(new Date(exportedAt))}.zip`
     a.click()
     URL.revokeObjectURL(url)
-    useStore.getState().showToast('数据已导出', 'success')
+    useStore.getState().showToast(tLocale(locale, 'store.dataExported'), 'success')
   } catch (e) {
+    const locale = useStore.getState().settings.language
     useStore
       .getState()
       .showToast(
-        `导出失败：${e instanceof Error ? e.message : String(e)}`,
+        tLocale(locale, 'store.exportFailed', { error: e instanceof Error ? e.message : String(e) }),
         'error',
       )
   }
@@ -1920,11 +1949,12 @@ export interface ImportOptions {
 /** 导入 ZIP 数据 */
 export async function importData(file: File, options: ImportOptions = { importConfig: true, importTasks: true }): Promise<boolean> {
   try {
+    const initialLocale = useStore.getState().settings.language
     const buffer = await file.arrayBuffer()
     const unzipped = unzipSync(new Uint8Array(buffer))
 
     const manifestBytes = unzipped['manifest.json']
-    if (!manifestBytes) throw new Error('ZIP 中缺少 manifest.json')
+    if (!manifestBytes) throw new Error(tLocale(initialLocale, 'store.zipMissingManifest'))
 
     const data: ExportData = JSON.parse(strFromU8(manifestBytes))
 
@@ -1981,20 +2011,22 @@ export async function importData(file: File, options: ImportOptions = { importCo
       state.setSettings(mergeImportedSettings(state.settings, data.settings))
     }
 
-    let msg = '数据已成功导入'
+    const locale = useStore.getState().settings.language
+    let msg = tLocale(locale, 'store.dataImported')
     if (options.importTasks && data.tasks) {
-      msg = `已导入 ${data.tasks.length} 条记录`
+      msg = tLocale(locale, 'store.importedRecords', { count: data.tasks.length })
     } else if (options.importConfig && data.settings) {
-      msg = '配置已成功导入'
+      msg = tLocale(locale, 'store.configImported')
     }
 
     useStore.getState().showToast(msg, 'success')
     return true
   } catch (e) {
+    const locale = useStore.getState().settings.language
     useStore
       .getState()
       .showToast(
-        `导入失败：${e instanceof Error ? e.message : String(e)}`,
+        tLocale(locale, 'store.importFailed', { error: e instanceof Error ? e.message : String(e) }),
         'error',
       )
     return false
@@ -2014,7 +2046,7 @@ export async function addImageFromFile(file: File): Promise<void> {
 export async function addImageFromUrl(src: string): Promise<void> {
   const res = await fetch(src)
   const blob = await res.blob()
-  if (!blob.type.startsWith('image/')) throw new Error('不是有效的图片')
+  if (!blob.type.startsWith('image/')) throw new Error(tLocale(useStore.getState().settings.language, 'store.invalidImage'))
   const dataUrl = await blobToDataUrl(blob)
   const id = await storeImage(dataUrl, 'upload')
   cacheImage(id, dataUrl)

@@ -145,7 +145,7 @@ describe('mask draft lifecycle in store actions', () => {
 })
 
 describe('interrupted OpenAI running tasks', () => {
-  it('marks legacy and OpenAI running tasks as interrupted', () => {
+  it('marks legacy and OpenAI running tasks as interrupted in the active locale', () => {
     const now = 10_000
     const legacyRunning = task({ id: 'legacy-running', status: 'running', createdAt: 1_000, finishedAt: null, elapsed: null })
     const openAIRunning = task({ id: 'openai-running', apiProvider: 'openai', status: 'running', createdAt: 2_000, finishedAt: null, elapsed: null })
@@ -153,18 +153,18 @@ describe('interrupted OpenAI running tasks', () => {
     const customAsyncRunning = task({ id: 'custom-running', apiProvider: 'custom-provider', customTaskId: 'task-1', status: 'running', createdAt: 4_000, finishedAt: null, elapsed: null })
     const doneTask = task({ id: 'done-task', apiProvider: 'openai', status: 'done' })
 
-    const result = markInterruptedOpenAIRunningTasks([legacyRunning, openAIRunning, falRunning, customAsyncRunning, doneTask], now)
+    const result = markInterruptedOpenAIRunningTasks([legacyRunning, openAIRunning, falRunning, customAsyncRunning, doneTask], 'en', now)
 
     expect(result.interruptedTasks.map((item) => item.id)).toEqual(['legacy-running', 'openai-running'])
     expect(result.tasks.find((item) => item.id === 'legacy-running')).toMatchObject({
       status: 'error',
-      error: expect.stringContaining('请求中断'),
+      error: expect.stringContaining('Request interrupted'),
       finishedAt: now,
       elapsed: 9_000,
     })
     expect(result.tasks.find((item) => item.id === 'openai-running')).toMatchObject({
       status: 'error',
-      error: expect.stringContaining('请求中断'),
+      error: expect.stringContaining('Request interrupted'),
       finishedAt: now,
       elapsed: 8_000,
     })
@@ -254,7 +254,7 @@ describe('reused task API profile', () => {
     expect(state.settings.activeProfileId).toBe(openaiProfile.id)
     expect(state.reusedTaskApiProfileId).toBe(falProfile.id)
     expect(state.params).toMatchObject({ n: 4, size: '1360x1024', quality: 'high' })
-    expect(state.showToast).toHaveBeenCalledWith('已临时复用该任务的 API 配置「fal 配置」', 'success')
+    expect(state.showToast).toHaveBeenCalledWith('Temporarily reused the task API profile “fal 配置”', 'success')
   })
 
   it('keeps selected image mentions when reusing a task with different current input images', async () => {
@@ -314,17 +314,40 @@ describe('reused task API profile', () => {
     expect(state.params).toMatchObject({ n: 8, size: 'auto', quality: 'auto' })
   })
 
-  it('asks whether to submit with current API profile when the reused API profile is missing', async () => {
+  it('asks in English whether to submit with the current API profile when the reused API profile is missing', async () => {
+    useStore.setState({
+      settings: normalizeSettings({
+        ...useStore.getState().settings,
+        language: 'en',
+      }),
+    })
+
     await reuseConfig(task({ apiProvider: 'fal', apiProfileId: 'missing-profile' }))
 
     const state = useStore.getState()
     expect(state.tasks).toEqual([])
     expect(state.setConfirmDialog).toHaveBeenCalledWith(expect.objectContaining({
-      title: '找不到 API 配置',
-      message: '找不到复用任务所使用的 API 配置「未知配置」，要使用当前的 API 配置「默认」提交任务吗？',
-      confirmText: '使用当前配置提交',
-      cancelText: '放弃提交',
+      title: 'API profile not found',
+      message: 'The reused task API profile “Unknown” was not found. Submit with the current API profile “默认” instead?',
+      confirmText: 'Submit with current profile',
+      cancelText: 'Cancel submit',
     }))
     expect(state.showSettings).toBe(false)
+  })
+
+  it('shows the prompt-required toast in English', async () => {
+    useStore.setState({
+      settings: { ...DEFAULT_SETTINGS, language: 'en', apiKey: 'test-key' },
+      prompt: '',
+      inputImages: [],
+      maskDraft: null,
+      params: { ...DEFAULT_PARAMS },
+      tasks: [],
+      showToast: vi.fn(),
+    })
+
+    await submitTask()
+
+    expect(useStore.getState().showToast).toHaveBeenCalledWith('Please enter a prompt', 'error')
   })
 })
