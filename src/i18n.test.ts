@@ -5,11 +5,13 @@ import settingsModalSource from './components/SettingsModal.tsx?raw'
 import sizePickerModalSource from './components/SizePickerModal.tsx?raw'
 import taskCardSource from './components/TaskCard.tsx?raw'
 import detailModalSource from './components/DetailModal.tsx?raw'
+import confirmDialogSource from './components/ConfirmDialog.tsx?raw'
 import inputBarSource from './components/InputBar.tsx?raw'
 import { translate, type MessageKey } from './lib/i18n'
 import { inlineTranslate } from './lib/inlineI18n'
 
 const componentFiles = [
+  'src/components/ConfirmDialog.tsx',
   'src/components/Header.tsx',
   'src/components/ImageContextMenu.tsx',
   'src/components/InputBar.tsx',
@@ -93,6 +95,7 @@ describe('i18n wiring', () => {
         if (
           !/[\u4e00-\u9fff]/.test(line) ||
           trimmed.startsWith('//') ||
+          trimmed.startsWith('/**') ||
           trimmed.startsWith('{/*') ||
           trimmed.startsWith('*') ||
           /tx\(|t\(|inlineTranslate\(|@图|图\d|data-placeholder/.test(line)
@@ -105,5 +108,9 @@ describe('i18n wiring', () => {
     }
 
     expect(offenders).toEqual([])
+  })
+
+  it('does not infer destructive dialog styling from localized title text', () => {
+    expect(confirmDialogSource).not.toContain('/删除|清空|delete|clear/i')
   })
 })

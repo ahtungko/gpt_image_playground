@@ -233,7 +233,7 @@ export default function TaskGrid() {
       if (now - lastToastTimeRef.current > 3000) {
         lastToastTimeRef.current = now
         const keyName = isMac ? '⌘' : 'Ctrl'
-        useStore.getState().showToast(`松开 ${keyName} 键使用滚轮，或拖至边缘自动滚动`, 'info')
+        useStore.getState().showToast(t('taskGrid.dragScrollHint', { key: keyName }), 'info')
       }
     }
 

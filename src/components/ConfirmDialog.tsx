@@ -59,15 +59,14 @@ export default function ConfirmDialog() {
   usePreventBackgroundScroll(Boolean(confirmDialog))
 
   if (!confirmDialog) return null
-  const isDestructive = /删除|清空|delete|clear/i.test(confirmDialog.title)
-  const confirmTone = confirmDialog.tone ?? (isDestructive ? 'danger' : undefined)
+  const confirmTone = confirmDialog.tone
   const confirmClassName =
     confirmTone === 'warning'
       ? 'bg-orange-500 hover:bg-orange-600'
       : confirmTone === 'danger'
       ? 'bg-red-500 hover:bg-red-600'
       : 'bg-blue-500 hover:bg-blue-600'
-  const confirmText = confirmDialog.confirmText ?? (isDestructive ? t('common.confirmDelete') : t('common.confirm'))
+  const confirmText = confirmDialog.confirmText ?? (confirmTone === 'danger' ? t('common.confirmDelete') : t('common.confirm'))
   const cancelText = confirmDialog.cancelText ?? t('common.cancel')
 
   return (
