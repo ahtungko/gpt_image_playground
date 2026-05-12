@@ -3,8 +3,57 @@
 // ===== 设置 =====
 
 export type ApiMode = 'images' | 'responses'
-export type ApiProvider = 'openai' | 'fal'
+export type BuiltInApiProvider = 'openai' | 'fal'
+export type ApiProvider = BuiltInApiProvider | string
+export type CustomProviderTemplate = 'http-image'
 export type KeyRole = 'admin' | 'user'
+
+export type CustomProviderRequestMethod = 'GET' | 'POST'
+export type CustomProviderContentType = 'json' | 'multipart'
+export type CustomProviderFileSource = 'inputImages' | 'mask'
+
+export interface CustomProviderFileMapping {
+  field: string
+  source: CustomProviderFileSource
+  array?: boolean
+}
+
+export interface CustomProviderResultMapping {
+  imageUrlPaths?: string[]
+  b64JsonPaths?: string[]
+}
+
+export interface CustomProviderSubmitMapping {
+  path: string
+  method?: CustomProviderRequestMethod
+  contentType?: CustomProviderContentType
+  query?: Record<string, string>
+  body?: Record<string, unknown>
+  files?: CustomProviderFileMapping[]
+  taskIdPath?: string
+  result?: CustomProviderResultMapping
+}
+
+export interface CustomProviderPollMapping {
+  path: string
+  method?: CustomProviderRequestMethod
+  query?: Record<string, string>
+  intervalSeconds?: number
+  statusPath: string
+  successValues: string[]
+  failureValues: string[]
+  errorPath?: string
+  result: CustomProviderResultMapping
+}
+
+export interface CustomProviderDefinition {
+  id: string
+  name: string
+  template?: CustomProviderTemplate
+  submit: CustomProviderSubmitMapping
+  editSubmit?: CustomProviderSubmitMapping
+  poll?: CustomProviderPollMapping
+}
 
 export interface ApiProfile {
   id: string
@@ -17,9 +66,12 @@ export interface ApiProfile {
   apiMode: ApiMode
   codexCli: boolean
   apiProxy: boolean
+  responseFormatB64Json?: boolean
+  providerDrafts?: Partial<Record<ApiProvider, Partial<Pick<ApiProfile, 'baseUrl' | 'model' | 'apiMode' | 'codexCli' | 'apiProxy' | 'responseFormatB64Json'>>>>
 }
 
 export interface AppSettings {
+  /** 旧版单配置字段：保留用于导入/查询参数兼容，实际请求以 active profile 为准 */
   baseUrl: string
   apiKey: string
   model: string
@@ -27,8 +79,14 @@ export interface AppSettings {
   apiMode: ApiMode
   codexCli: boolean
   apiProxy: boolean
+  customProviders: CustomProviderDefinition[]
+  providerOrder?: string[]
   backgroundTasks: boolean
   clearInputAfterSubmit: boolean
+  persistInputOnRestart: boolean
+  reuseTaskApiProfileTemporarily: boolean
+  alwaysShowRetryButton: boolean
+  enterSubmit: boolean
   language: Locale
   profiles: ApiProfile[]
   activeProfileId: string
@@ -37,45 +95,6 @@ export interface AppSettings {
   keyGenerateRemaining: number | null
   keyEditRemaining: number | null
   keyMaxRunningTasks: number | null
-}
-
-const DEFAULT_BASE_URL = import.meta.env.VITE_DEFAULT_API_URL?.trim() || 'https://api.openai.com/v1'
-const DEFAULT_BACKGROUND_TASKS = !/\/\/api\.openai\.com(?:\/|$)/i.test(DEFAULT_BASE_URL)
-const DEFAULT_OPENAI_PROFILE_ID = 'default-openai'
-export const DEFAULT_IMAGES_MODEL = 'gpt-image-2'
-export const DEFAULT_RESPONSES_MODEL = 'gpt-5.5'
-
-export const DEFAULT_SETTINGS: AppSettings = {
-  baseUrl: DEFAULT_BASE_URL,
-  apiKey: '',
-  model: DEFAULT_IMAGES_MODEL,
-  timeout: 300,
-  apiMode: 'images',
-  codexCli: false,
-  apiProxy: false,
-  backgroundTasks: DEFAULT_BACKGROUND_TASKS,
-  clearInputAfterSubmit: false,
-  language: getDefaultLocale(),
-  profiles: [
-    {
-      id: DEFAULT_OPENAI_PROFILE_ID,
-      name: 'Default',
-      provider: 'openai',
-      baseUrl: DEFAULT_BASE_URL,
-      apiKey: '',
-      model: DEFAULT_IMAGES_MODEL,
-      timeout: 300,
-      apiMode: 'images',
-      codexCli: false,
-      apiProxy: false,
-    },
-  ],
-  activeProfileId: DEFAULT_OPENAI_PROFILE_ID,
-  keyRole: null,
-  keyName: '',
-  keyGenerateRemaining: null,
-  keyEditRemaining: null,
-  keyMaxRunningTasks: null,
 }
 
 // ===== 任务参数 =====
@@ -101,7 +120,9 @@ export const DEFAULT_PARAMS: TaskParams = {
 // ===== 输入图片（UI 层面） =====
 
 export interface InputImage {
+  /** IndexedDB image store 的 id（SHA-256 hash） */
   id: string
+  /** data URL，用于预览 */
   dataUrl: string
 }
 
@@ -129,27 +150,51 @@ export interface TaskRecord {
   id: string
   prompt: string
   params: TaskParams
+  /** 生成时使用的 Provider 类型 */
   apiProvider?: ApiProvider
+  /** 生成时使用的 API 配置 ID */
+  apiProfileId?: string
+  /** 生成时使用的 Provider 名称 */
   apiProfileName?: string
+  /** 生成时使用的模型 ID */
   apiModel?: string
+  /** fal.ai 队列请求 ID，用于连接断开后的结果恢复 */
   falRequestId?: string
+  /** fal.ai 队列 endpoint，用于连接断开后的状态和结果查询 */
   falEndpoint?: string
+  /** fal.ai 任务连接断开后是否等待自动恢复 */
   falRecoverable?: boolean
+  /** 自定义异步服务商任务 ID，用于重启后继续查询结果 */
+  customTaskId?: string
+  /** 自定义异步任务是否等待自动恢复 */
+  customRecoverable?: boolean
+  /** API 返回的实际生效参数，用于标记与请求值不一致的情况 */
   actualParams?: Partial<TaskParams>
+  /** 输出图片对应的实际生效参数，key 为 outputImages 中的图片 id */
   actualParamsByImage?: Record<string, Partial<TaskParams>>
+  /** 输出图片对应的 API 改写提示词，key 为 outputImages 中的图片 id */
   revisedPromptByImage?: Record<string, string>
+  /** 输入图片的 image store id 列表 */
   inputImageIds: string[]
   maskTargetImageId?: string | null
   maskImageId?: string | null
+  /** 输出图片的 image store id 列表 */
   outputImages: string[]
+  /** 后端后台任务 ID 列表 */
   backgroundTaskIds?: string[]
+  /** API 返回的原始图片 HTTP URL（非 base64 时记录） */
+  rawImageUrls?: string[]
+  /** 发生解析错误时的原始响应 JSON */
+  rawResponsePayload?: string
   status: TaskStatus
   error: string | null
   errorDetail?: string | null
   errorKind?: TaskErrorKind | null
   createdAt: number
   finishedAt: number | null
+  /** 总耗时毫秒 */
   elapsed: number | null
+  /** 是否收藏 */
   isFavorite?: boolean
 }
 
@@ -158,8 +203,26 @@ export interface TaskRecord {
 export interface StoredImage {
   id: string
   dataUrl: string
+  /** 图片首次存储时间（ms） */
   createdAt?: number
+  /** 图片来源：用户上传 / API 生成 / 遮罩 */
   source?: 'upload' | 'generated' | 'mask'
+  /** 原图宽度 */
+  width?: number
+  /** 原图高度 */
+  height?: number
+}
+
+export interface StoredImageThumbnail {
+  id: string
+  /** 列表缩略图，用于避免卡片页解码完整 4K 原图 */
+  thumbnailDataUrl: string
+  /** 原图宽度 */
+  width?: number
+  /** 原图高度 */
+  height?: number
+  /** 缩略图生成参数版本 */
+  thumbnailVersion?: number
 }
 
 // ===== API 请求体 =====
@@ -246,14 +309,30 @@ export interface FalApiResponse {
 
 // ===== 导出数据 =====
 
+/** ZIP manifest.json 格式 */
 export interface ExportData {
   version: number
   exportedAt: string
-  settings: AppSettings
-  tasks: TaskRecord[]
-  imageFiles: Record<string, {
+  settings?: AppSettings
+  tasks?: TaskRecord[]
+  /** imageId → 图片信息 */
+  imageFiles?: Record<string, {
     path: string
     createdAt?: number
     source?: 'upload' | 'generated' | 'mask'
+    width?: number
+    height?: number
+  }>
+  /** imageId → 缩略图信息 */
+  thumbnailFiles?: Record<string, {
+    path: string
+    width?: number
+    height?: number
+    thumbnailVersion?: number
   }>
 }
+
+// Re-export the local default locale helper source through settings defaults.
+export { getDefaultLocale }
+
+export { DEFAULT_SETTINGS, DEFAULT_IMAGES_MODEL, DEFAULT_RESPONSES_MODEL } from './lib/apiProfiles'

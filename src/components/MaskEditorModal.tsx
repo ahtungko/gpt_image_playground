@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { ensureImageCached, useStore } from '../store'
@@ -8,6 +8,7 @@ import { localizeKnownError } from '../lib/localizedError'
 import { prepareMaskTargetDataUrl, replaceMaskTargetImage } from '../lib/maskPreprocess'
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape'
 import { useI18n } from '../hooks/useI18n'
+import { usePreventBackgroundScroll } from '../hooks/usePreventBackgroundScroll'
 import {
   clampViewTransform,
   clientPointToCanvasPoint,
@@ -155,6 +156,7 @@ export default function MaskEditorModal() {
     setMaskEditorImageId(null)
   }
   useCloseOnEscape(Boolean(imageId), close)
+  usePreventBackgroundScroll(Boolean(imageId))
 
   useEffect(() => () => {
     if (maskInfoTimerRef.current != null) {
@@ -528,7 +530,7 @@ export default function MaskEditorModal() {
         setSize(nextSize)
         if (preparedTarget.wasResized) {
           showToast(
-            t('mask.targetResized', { from: `${preparedTarget.originalWidth}×${preparedTarget.originalHeight}`, to: `${preparedTarget.width}×${preparedTarget.height}` }),
+            t('mask.targetResized', { from: `${preparedTarget.originalWidth}Ã—${preparedTarget.originalHeight}`, to: `${preparedTarget.width}Ã—${preparedTarget.height}` }),
             'info',
           )
         }
@@ -805,6 +807,7 @@ export default function MaskEditorModal() {
           id: workingTargetId,
           dataUrl: sourceDataUrl,
         }),
+        { equivalentImageIds: { [savingImageId]: workingTargetId } },
       )
       setMaskDraft({
         targetImageId: workingTargetId,
@@ -1031,3 +1034,4 @@ export default function MaskEditorModal() {
     </>
   )
 }
+

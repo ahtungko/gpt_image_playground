@@ -1,6 +1,6 @@
-node_modules/
+﻿node_modules/
 dist/
 dev-proxy.config.json
-.env
-.env.*
-!.env.example
+.wrangler/
+*.iml
+.idea/
