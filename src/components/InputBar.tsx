@@ -1658,13 +1658,13 @@ export default function InputBar() {
             <div className="text-center">
               {atImageLimit ? (
                 <>
-                  <p className="text-lg font-semibold text-red-500">已达上限 {API_MAX_IMAGES} 张</p>
-                  <p className="text-sm text-gray-400 mt-1">请先移除部分参考图后再添加</p>
+                  <p className="text-lg font-semibold text-red-500">{t('input.limitReached', { max: API_MAX_IMAGES })}</p>
+                  <p className="text-sm text-gray-400 mt-1">{t('input.removeSomeReferences')}</p>
                 </>
               ) : (
                 <>
-                  <p className="text-lg font-semibold text-gray-700 dark:text-gray-200">释放以添加参考图</p>
-                  <p className="text-sm text-gray-400 mt-1">支持 JPG、PNG、WebP 等格式</p>
+                  <p className="text-lg font-semibold text-gray-700 dark:text-gray-200">{t('input.dropToAddReferences')}</p>
+                  <p className="text-sm text-gray-400 mt-1">{t('input.supportedFormats')}</p>
                 </>
               )}
             </div>
@@ -1890,7 +1890,7 @@ export default function InputBar() {
                   onMouseEnter={() => setAttachHover(true)}
                   onMouseLeave={() => setAttachHover(false)}
                 >
-                  <ButtonTooltip visible={atImageLimit && attachHover} text={`参考图数量已达上限（${API_MAX_IMAGES} 张），无法继续添加`} />
+                  <ButtonTooltip visible={atImageLimit && attachHover} text={t('input.referenceLimit', { max: API_MAX_IMAGES })} />
                   <button
                     onClick={() => !atImageLimit && fileInputRef.current?.click()}
                     className={`p-2.5 rounded-xl transition-all shadow-sm ${
@@ -1898,7 +1898,7 @@ export default function InputBar() {
                         ? 'bg-gray-200 dark:bg-white/[0.04] text-gray-300 dark:text-gray-500 cursor-not-allowed'
                         : 'bg-gray-200 dark:bg-white/[0.06] hover:bg-gray-300 dark:hover:bg-white/[0.1] text-gray-500 dark:text-gray-300 hover:shadow'
                     }`}
-                    title={atImageLimit ? `已达上限 ${API_MAX_IMAGES} 张` : '添加参考图'}
+                    title={atImageLimit ? t('input.referenceLimitShort', { max: API_MAX_IMAGES }) : t('input.addReference')}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
@@ -1910,7 +1910,7 @@ export default function InputBar() {
                   onMouseEnter={() => setSubmitHover(true)}
                   onMouseLeave={() => setSubmitHover(false)}
                 >
-                  <ButtonTooltip visible={!hasSubmitApiConfig && submitHover} text="尚未完成 API 配置，请在右上角设置中进行" />
+                  <ButtonTooltip visible={!hasSubmitApiConfig && submitHover} text={t('input.apiConfigMissing')} />
                   <ButtonTooltip visible={keyBlockedByTaskLimit && submitHover} text={t('input.keyTaskLimitZero')} />
                   <ButtonTooltip visible={keyBlockedByQuota && submitHover} text={t('input.keyQuotaReached')} />
                   <button
@@ -1921,7 +1921,7 @@ export default function InputBar() {
                         ? 'bg-gray-300 dark:bg-white/[0.06] text-white cursor-pointer'
                         : 'bg-blue-500 text-white hover:bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-white/[0.04] disabled:opacity-50 disabled:cursor-not-allowed'
                     }`}
-                    title={hasSubmitApiConfig ? (maskDraft ? '遮罩编辑 (Ctrl+Enter)' : '生成 (Ctrl+Enter)') : '请先配置 API'}
+                    title={hasSubmitApiConfig ? (maskDraft ? t('input.maskEditShortcut') : t('input.generateShortcut')) : t('input.configureApiFirst')}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
@@ -1946,7 +1946,7 @@ export default function InputBar() {
                   onMouseEnter={() => setAttachHover(true)}
                   onMouseLeave={() => setAttachHover(false)}
                 >
-                  <ButtonTooltip visible={atImageLimit && attachHover} text={`参考图数量已达上限（${API_MAX_IMAGES} 张），无法继续添加`} />
+                  <ButtonTooltip visible={atImageLimit && attachHover} text={t('input.referenceLimit', { max: API_MAX_IMAGES })} />
                   <button
                     onClick={() => !atImageLimit && fileInputRef.current?.click()}
                     className={`p-2.5 rounded-xl transition-all shadow-sm flex-shrink-0 ${
@@ -1954,7 +1954,7 @@ export default function InputBar() {
                         ? 'bg-gray-200 dark:bg-white/[0.04] text-gray-300 dark:text-gray-500 cursor-not-allowed'
                         : 'bg-gray-200 dark:bg-white/[0.06] hover:bg-gray-300 dark:hover:bg-white/[0.1] text-gray-500 dark:text-gray-300'
                     }`}
-                    title={atImageLimit ? `已达上限 ${API_MAX_IMAGES} 张` : '添加参考图'}
+                    title={atImageLimit ? t('input.referenceLimitShort', { max: API_MAX_IMAGES }) : t('input.addReference')}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
@@ -1966,7 +1966,7 @@ export default function InputBar() {
                   onMouseEnter={() => setSubmitHover(true)}
                   onMouseLeave={() => setSubmitHover(false)}
                 >
-                  <ButtonTooltip visible={!hasSubmitApiConfig && submitHover} text="尚未完成 API 配置，请在右上角设置中进行" />
+                  <ButtonTooltip visible={!hasSubmitApiConfig && submitHover} text={t('input.apiConfigMissing')} />
                   <ButtonTooltip visible={keyBlockedByTaskLimit && submitHover} text={t('input.keyTaskLimitZero')} />
                   <ButtonTooltip visible={keyBlockedByQuota && submitHover} text={t('input.keyQuotaReached')} />
                   <button
@@ -1981,7 +1981,7 @@ export default function InputBar() {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                     </svg>
-                    {maskDraft ? '遮罩编辑' : '生成图像'}
+                    {maskDraft ? t('input.maskEdit') : t('input.generateImage')}
                   </button>
                 </div>
               </div>

@@ -59,7 +59,7 @@ export default function ConfirmDialog() {
   usePreventBackgroundScroll(Boolean(confirmDialog))
 
   if (!confirmDialog) return null
-  const isDestructive = confirmDialog.title.includes('删除') || confirmDialog.title.includes('清空')
+  const isDestructive = /删除|清空|delete|clear/i.test(confirmDialog.title)
   const confirmTone = confirmDialog.tone ?? (isDestructive ? 'danger' : undefined)
   const confirmClassName =
     confirmTone === 'warning'

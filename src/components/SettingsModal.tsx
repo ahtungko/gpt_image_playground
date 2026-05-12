@@ -26,6 +26,8 @@ import type { ApiProfile, AppSettings, CustomProviderDefinition } from '../types
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape'
 import { usePreventBackgroundScroll } from '../hooks/usePreventBackgroundScroll'
 import { DEFAULT_DROPDOWN_MAX_HEIGHT, getDropdownMaxHeight } from '../lib/dropdown'
+import { LANGUAGE_OPTIONS, type Locale } from '../lib/i18n'
+import { useI18n } from '../hooks/useI18n'
 import Select from './Select'
 import { Checkbox } from './Checkbox'
 import ViewportTooltip from './ViewportTooltip'
@@ -267,6 +269,7 @@ profiles 中不要包含 apiKey（用户导入后自行填写）。
 {"customProviders":[{"id":"custom-example-task","name":"示例任务服务商","submit":{"path":"images/generations","method":"POST","contentType":"json","body":{"model":"$profile.model","prompt":"$prompt","n":"$params.n","size":"$params.size","resolution":"2k","quality":"$params.quality","image_urls":"$inputImages.dataUrls"},"taskIdPath":"data.0.task_id"},"poll":{"path":"tasks/{task_id}","method":"GET","query":{"language":"zh"},"intervalSeconds":5,"statusPath":"data.status","successValues":["completed"],"failureValues":["failed","cancelled"],"errorPath":"data.error.message","result":{"imageUrlPaths":["data.result.images.*.url.*"],"b64JsonPaths":[]}}}],"profiles":[{"name":"示例任务服务商","provider":"custom-example-task","baseUrl":"","model":"gpt-image-2","apiMode":"images"}]}`
 
 export default function SettingsModal() {
+  const { t } = useI18n()
   const showSettings = useStore((s) => s.showSettings)
   const setShowSettings = useStore((s) => s.setShowSettings)
   const settings = useStore((s) => s.settings)
@@ -1030,13 +1033,13 @@ export default function SettingsModal() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-            设置
+            {t('settings.title')}
           </h3>
           <div className="flex items-center gap-3">
             <button
               onClick={handleClose}
               className="rounded-full p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/[0.06] dark:hover:text-gray-200"
-              aria-label="关闭"
+              aria-label={t('common.close')}
             >
               <CloseIcon className="h-5 w-5" />
             </button>
@@ -1054,7 +1057,7 @@ export default function SettingsModal() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z" />
                 </svg>
-                习惯配置
+                {t('settings.preferences')}
               </button>
               <button
                 onClick={() => setActiveTab('api')}
@@ -1063,7 +1066,7 @@ export default function SettingsModal() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                 </svg>
-                API 配置
+                {t('settings.apiConfig')}
               </button>
               <button
                 onClick={() => setActiveTab('data')}
@@ -1072,7 +1075,7 @@ export default function SettingsModal() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
                 </svg>
-                数据管理
+                {t('settings.dataManagement')}
               </button>
             </nav>
           </div>
@@ -1082,9 +1085,25 @@ export default function SettingsModal() {
             <div className="flex-1 overflow-y-auto overscroll-contain custom-scrollbar p-5 sm:p-6">
             {activeTab === 'general' && (
               <div className="space-y-4">
+                <div className="block">
+                  <div className="mb-1 flex items-center justify-between gap-3">
+                    <span className="block text-sm text-gray-600 dark:text-gray-300">{t('settings.language')}</span>
+                    <div className="w-40">
+                      <Select
+                        value={draft.language}
+                        onChange={(value) => commitSettings({ ...draft, language: value as Locale })}
+                        options={LANGUAGE_OPTIONS}
+                        className="w-full px-3 py-1.5 rounded-xl border border-gray-200/60 dark:border-white/[0.08] bg-white/50 dark:bg-white/[0.03] hover:bg-white dark:hover:bg-white/[0.06] text-xs transition-all duration-200 shadow-sm text-gray-700 dark:text-gray-200 outline-none"
+                      />
+                    </div>
+                  </div>
+                  <div data-selectable-text className="text-xs text-gray-500 dark:text-gray-500">
+                    {t('settings.languageSelectorDesc')}
+                  </div>
+                </div>
                 <div className="hidden sm:block">
                   <div className="mb-1 flex items-center justify-between">
-                    <span className="block text-sm text-gray-600 dark:text-gray-300">任务提交方式</span>
+                    <span className="block text-sm text-gray-600 dark:text-gray-300">{t('settings.submitMethod')}</span>
                     <div className="w-32">
                       <Select
                         value={draft.enterSubmit ? 'enter' : 'ctrl-enter'}
@@ -1098,7 +1117,7 @@ export default function SettingsModal() {
                     </div>
                   </div>
                   <div data-selectable-text className="text-xs text-gray-500 dark:text-gray-500">
-                    选择 Enter 提交时，使用 Shift + Enter 换行；否则直接 Enter 换行。
+                    {t('settings.submitMethodDesc')}
                   </div>
                 </div>
                 <div className="block">

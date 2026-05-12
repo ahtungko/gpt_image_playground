@@ -4,6 +4,7 @@ import { useStore, ensureImageThumbnailCached, subscribeImageThumbnail, updateTa
 import { formatImageRatio } from '../lib/size'
 import { getParamDisplay, ActualValueBadge } from '../lib/paramDisplay'
 import { DEFAULT_IMAGES_MODEL, DEFAULT_FAL_MODEL } from '../lib/apiProfiles'
+import { useI18n } from '../hooks/useI18n'
 import { CodeIcon } from './icons'
 
 interface Props {
@@ -23,6 +24,7 @@ export default function TaskCard({
   onClick,
   isSelected,
 }: Props) {
+  const { t } = useI18n()
   const [thumbSrc, setThumbSrc] = useState<string>('')
   const [coverRatio, setCoverRatio] = useState<string>('')
   const [coverSize, setCoverSize] = useState<string>('')
@@ -286,7 +288,7 @@ export default function TaskCard({
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                 />
               </svg>
-              <span className="text-xs text-gray-400 dark:text-gray-500">生成中...</span>
+              <span className="text-xs text-gray-400 dark:text-gray-500">{t('task.generating')}</span>
             </div>
           )}
           {task.status === 'error' && isFalReconnecting && (
@@ -305,7 +307,7 @@ export default function TaskCard({
                 />
               </svg>
               <span className="text-xs text-yellow-500 text-center leading-tight">
-                重连中
+                {t('task.reconnecting')}
               </span>
             </div>
           )}
@@ -325,7 +327,7 @@ export default function TaskCard({
                 />
               </svg>
               <span className="text-xs text-red-400 text-center leading-tight">
-                失败
+                {t('task.failed')}
               </span>
             </div>
           )}
@@ -386,7 +388,7 @@ export default function TaskCard({
         <div className="flex-1 p-3 flex flex-col min-w-0">
           <div className="flex-1 min-h-0 mb-2 overflow-hidden">
             <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed line-clamp-3">
-              {task.prompt || '(无提示词)'}
+              {task.prompt || t('task.noPrompt')}
             </p>
           </div>
           <div className="mt-auto flex flex-col gap-1.5">
@@ -431,31 +433,31 @@ export default function TaskCard({
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                   </svg>
-                  局部重绘
+                  {t('input.maskEdit')}
                 </span>
               )}
               {/* Params: only show if not default or mismatch */}
               {showQuality && (
                 <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 dark:bg-white/[0.04] text-xs flex-shrink-0">
-                  <span className="text-gray-400 dark:text-gray-500">质量</span>
+                  <span className="text-gray-400 dark:text-gray-500">{t('task.quality')}</span>
                   {qualityDisplay.isMismatch ? <ActualValueBadge value={qualityDisplay.displayValue} className="px-1 rounded-sm" /> : <span className="text-gray-600 dark:text-gray-300">{qualityDisplay.displayValue}</span>}
                 </span>
               )}
               {showSize && (
                 <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 dark:bg-white/[0.04] text-xs flex-shrink-0">
-                  <span className="text-gray-400 dark:text-gray-500">尺寸</span>
+                  <span className="text-gray-400 dark:text-gray-500">{t('task.size')}</span>
                   {sizeDisplay.isMismatch ? <ActualValueBadge value={sizeDisplay.displayValue} className="px-1 rounded-sm" /> : <span className="text-gray-600 dark:text-gray-300">{sizeDisplay.displayValue}</span>}
                 </span>
               )}
               {showFormat && (
                 <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 dark:bg-white/[0.04] text-xs flex-shrink-0">
-                  <span className="text-gray-400 dark:text-gray-500">格式</span>
+                  <span className="text-gray-400 dark:text-gray-500">{t('task.format')}</span>
                   {formatDisplay.isMismatch ? <ActualValueBadge value={formatDisplay.displayValue} className="px-1 rounded-sm" /> : <span className="text-gray-600 dark:text-gray-300">{formatDisplay.displayValue}</span>}
                 </span>
               )}
               {showN && (
                 <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 dark:bg-white/[0.04] text-xs flex-shrink-0">
-                  <span className="text-gray-400 dark:text-gray-500">数量</span>
+                  <span className="text-gray-400 dark:text-gray-500">{t('task.count')}</span>
                   {nDisplay.isMismatch ? <ActualValueBadge value={nDisplay.displayValue} className="px-1 rounded-sm" /> : <span className="text-gray-600 dark:text-gray-300">{nDisplay.displayValue}</span>}
                 </span>
               )}
@@ -469,7 +471,7 @@ export default function TaskCard({
                 <button
                   onClick={() => retryTask(task)}
                   className="p-1.5 rounded-md hover:bg-blue-50 dark:hover:bg-blue-950/30 text-gray-400 hover:text-blue-500 transition"
-                  title="重试任务"
+                  title={t('task.retry')}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -485,7 +487,7 @@ export default function TaskCard({
                     ? 'text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-500/10'
                     : 'text-gray-400 hover:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-500/10'
                 }`}
-                title={task.isFavorite ? '取消收藏' : '收藏记录'}
+                title={task.isFavorite ? t('task.cancelFavorite') : t('task.favorite')}
               >
                 <svg
                   className="w-4 h-4"
@@ -504,7 +506,7 @@ export default function TaskCard({
               <button
                 onClick={onReuse}
                 className="p-1.5 rounded-md hover:bg-blue-50 dark:hover:bg-blue-950/30 text-gray-400 hover:text-blue-500 transition"
-                title="复用配置"
+                title={t('task.reuseConfig')}
               >
                 <svg
                   className="w-4 h-4"
@@ -523,7 +525,7 @@ export default function TaskCard({
               <button
                 onClick={onEditOutputs}
                 className="p-1.5 rounded-md hover:bg-green-50 dark:hover:bg-green-950/30 text-gray-400 hover:text-green-500 transition disabled:opacity-30"
-                title="编辑输出"
+                title={t('task.editOutput')}
                 disabled={!task.outputImages?.length}
               >
                 <svg
@@ -543,7 +545,7 @@ export default function TaskCard({
               <button
                 onClick={onDelete}
                 className="p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-950/30 text-gray-400 hover:text-red-500 transition"
-                title="删除记录"
+                title={t('task.deleteRecord')}
               >
                 <svg
                   className="w-4 h-4"
