@@ -2,6 +2,7 @@
 import { useStore } from '../store'
 import { useTooltip } from '../hooks/useTooltip'
 import { useI18n } from '../hooks/useI18n'
+import { inlineTranslate } from '../lib/inlineI18n'
 import { dismissAllTooltips } from '../lib/tooltipDismiss'
 import ViewportTooltip from './ViewportTooltip'
 import HelpModal from './HelpModal'
@@ -19,7 +20,8 @@ function isInstalledPwa() {
 export default function Header() {
   const setShowSettings = useStore((s) => s.setShowSettings)
   const setConfirmDialog = useStore((s) => s.setConfirmDialog)
-  const { t } = useI18n()
+  const { locale, t } = useI18n()
+  const tx = (text: string, values?: Record<string, string | number | boolean | null | undefined>) => inlineTranslate(locale, text, values)
   const [showHelp, setShowHelp] = useState(false)
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [isPwaInstalled, setIsPwaInstalled] = useState(isInstalledPwa)
@@ -64,12 +66,12 @@ export default function Header() {
     } else {
       const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
       setConfirmDialog({
-        title: '安装为应用',
+        title: tx('安装为应用'),
         message: isIos
-          ? '在 Safari 浏览器中，点击底部「分享」按钮，选择「添加到主屏幕」即可安装此应用。'
-          : '请在浏览器的菜单中选择「添加到主屏幕」或「安装应用」。\n\n（如果在微信等内置浏览器中，请先在外部浏览器打开）',
+          ? tx('在 Safari 浏览器中，点击底部「分享」按钮，选择「添加到主屏幕」即可安装此应用。')
+          : tx('请在浏览器的菜单中选择「添加到主屏幕」或「安装应用」。\n\n（如果在微信等内置浏览器中，请先在外部浏览器打开）'),
         showCancel: false,
-        confirmText: '我知道了',
+        confirmText: tx('我知道了'),
         icon: 'info',
         action: () => {},
       })
@@ -98,7 +100,7 @@ export default function Header() {
                     handleInstallClick()
                   }}
                   className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors"
-                  aria-label="安装为应用"
+                  aria-label={tx('安装为应用')}
                 >
                   <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -107,7 +109,7 @@ export default function Header() {
                   </svg>
                 </button>
                 <ViewportTooltip visible={installTooltip.visible} className="whitespace-nowrap">
-                  安装为应用
+                  {tx('安装为应用')}
                 </ViewportTooltip>
               </div>
             )}

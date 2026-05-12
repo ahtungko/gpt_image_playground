@@ -1,9 +1,11 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useStore, addImageFromUrl, ensureImageCached } from '../store'
 import { copyBlobToClipboard, getClipboardFailureMessage } from '../lib/clipboard'
+import { useI18n } from '../hooks/useI18n'
 import { CopyIcon, DownloadIcon, EditIcon } from './icons'
 
 export default function ImageContextMenu() {
+  const { t } = useI18n()
   const [menuInfo, setMenuInfo] = useState<{ src: string; imageId?: string; x: number; y: number } | null>(null)
   const showToast = useStore((s) => s.showToast)
   const inputImages = useStore((s) => s.inputImages)
@@ -85,10 +87,10 @@ export default function ImageContextMenu() {
       const res = await fetch(src)
       const blob = await res.blob()
       await copyBlobToClipboard(blob)
-      showToast('图片已复制', 'success')
+      showToast(t('context.imageCopied'), 'success')
     } catch (err) {
       console.error(err)
-      showToast(getClipboardFailureMessage('复制失败', err), 'error')
+      showToast(getClipboardFailureMessage(t('context.copyFailed'), err), 'error')
     }
   }
 
@@ -108,10 +110,10 @@ export default function ImageContextMenu() {
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
-      showToast('开始下载', 'success')
+      showToast(t('context.downloadStarted'), 'success')
     } catch (err) {
       console.error(err)
-      showToast('下载失败', 'error')
+      showToast(t('context.downloadFailed'), 'error')
     }
   }
 
@@ -119,7 +121,7 @@ export default function ImageContextMenu() {
     e.stopPropagation()
     setMenuInfo(null)
     if (inputImages.length >= 16) {
-      showToast('参考图数量已达上限（16 张），无法继续添加', 'error')
+      showToast(t('input.referenceLimit', { max: 16 }), 'error')
       return
     }
 
@@ -129,10 +131,10 @@ export default function ImageContextMenu() {
       setDetailTaskId(null)
       setLightboxImageId(null)
       setMaskEditorImageId(null)
-      showToast('已加入参考图', 'success')
+      showToast(t('context.addedReference'), 'success')
     } catch (err) {
       console.error(err)
-      showToast(`加入参考图失败：${err instanceof Error ? err.message : String(err)}`, 'error')
+      showToast(t('context.addReferenceFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
     }
   }
 
@@ -140,7 +142,7 @@ export default function ImageContextMenu() {
   let left = menuInfo.x
   let top = menuInfo.y
   const MENU_WIDTH = 120
-  const MENU_HEIGHT = 128 // 三个按钮高度加 padding
+  const MENU_HEIGHT = 128
 
   if (left + MENU_WIDTH > window.innerWidth) {
     left -= MENU_WIDTH
@@ -161,21 +163,21 @@ export default function ImageContextMenu() {
         className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex items-center gap-2 transition-colors"
       >
         <CopyIcon className="w-4 h-4 flex-shrink-0" />
-        复制
+        {t('common.copy')}
       </button>
       <button
         onClick={handleDownload}
         className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex items-center gap-2 transition-colors"
       >
         <DownloadIcon className="w-4 h-4 flex-shrink-0" />
-        下载
+        {t('common.download')}
       </button>
       <button
         onClick={handleEdit}
         className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex items-center gap-2 transition-colors"
       >
         <EditIcon className="w-4 h-4 flex-shrink-0" />
-        编辑
+        {t('common.edit')}
       </button>
     </div>
   )
