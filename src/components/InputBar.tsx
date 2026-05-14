@@ -447,13 +447,9 @@ export default function InputBar() {
   const sizeHintTimerRef = useRef<number | null>(null)
   const qualityHintTimerRef = useRef<number | null>(null)
   const imageHintTimerRef = useRef<number | null>(null)
-  const nLimitHintTimerRef = useRef<number | null>(null)
   const [outputCompressionInput, setOutputCompressionInput] = useState(
     params.output_compression == null ? '' : String(params.output_compression),
   )
-  const [nInput, setNInput] = useState(String(params.n))
-  const [nInputFocused, setNInputFocused] = useState(false)
-  const [nLimitHintVisible, setNLimitHintVisible] = useState(false)
   const dragCounter = useRef(0)
   const isMobile = useIsMobile()
 
@@ -480,8 +476,8 @@ export default function InputBar() {
   const providerOutputImageLimit = getOutputImageLimitForSettings(effectiveSettings)
   const keyOutputImageLimit = getMaxSelectableCount(effectiveSettings, tasks, { isEdit: isEditMode })
   const outputImageLimit = Math.min(providerOutputImageLimit, keyOutputImageLimit)
+  const showCountLimitHint = settings.keyRole === 'user' && settings.keyMaxRunningTasks != null
   const isFalTextToImage = isFalProvider && inputImages.length === 0
-  const nLimitHintText = tx('最大请求数量为 {max}', { max: outputImageLimit })
   const displaySize = isFalTextToImage && params.size === 'auto'
     ? DEFAULT_FAL_IMAGE_SIZE
     : normalizeImageSize(params.size) || DEFAULT_PARAMS.size
@@ -580,16 +576,19 @@ export default function InputBar() {
   }, [params.output_compression])
 
   useEffect(() => {
-    setNInput(String(params.n))
-  }, [params.n])
-
-  useEffect(() => {
     const normalizedParams = normalizeParamsForSettings(params, effectiveSettings, { hasInputImages: inputImages.length > 0 })
     const patch = getChangedParams(params, normalizedParams)
     if (Object.keys(patch).length) {
       setParams(patch)
     }
   }, [inputImages.length, params, effectiveSettings, setParams])
+
+  useEffect(() => {
+    const normalizedCount = Math.max(1, Math.min(outputImageLimit, Math.floor(Number(params.n) || DEFAULT_PARAMS.n)))
+    if (normalizedCount !== params.n) {
+      setParams({ n: normalizedCount })
+    }
+  }, [outputImageLimit, params.n, setParams])
 
   useEffect(() => () => {
     if (compressionHintTimerRef.current != null) {
@@ -608,9 +607,6 @@ export default function InputBar() {
       window.clearTimeout(imageHintTimerRef.current)
     }
     imageHintReleaseRef.current?.()
-    if (nLimitHintTimerRef.current != null) {
-      window.clearTimeout(nLimitHintTimerRef.current)
-    }
   }, [])
 
   useEffect(() => {
@@ -649,58 +645,6 @@ export default function InputBar() {
     setOutputCompressionInput(String(nextValue))
     setParams({ output_compression: nextValue })
   }, [outputCompressionInput, params.output_compression, setParams])
-
-  const commitN = useCallback(() => {
-    setNLimitHintVisible(false)
-    if (nLimitHintTimerRef.current != null) {
-      window.clearTimeout(nLimitHintTimerRef.current)
-      nLimitHintTimerRef.current = null
-    }
-    const nextValue = Number(nInput)
-    const normalizedValue =
-      nInput.trim() === '' ? DEFAULT_PARAMS.n : Number.isNaN(nextValue) ? params.n : nextValue
-    const clampedValue = Math.min(outputImageLimit, Math.max(1, normalizedValue))
-    setNInput(String(clampedValue))
-    setParams({ n: clampedValue })
-  }, [nInput, outputImageLimit, params.n, setParams])
-
-  const showNLimitHint = useCallback(() => {
-    setNLimitHintVisible(true)
-    if (nLimitHintTimerRef.current != null) {
-      window.clearTimeout(nLimitHintTimerRef.current)
-    }
-    nLimitHintTimerRef.current = window.setTimeout(() => {
-      setNLimitHintVisible(false)
-      nLimitHintTimerRef.current = null
-    }, 2000)
-  }, [])
-
-  const hideNLimitHint = useCallback(() => {
-    setNLimitHintVisible(false)
-    if (nLimitHintTimerRef.current != null) {
-      window.clearTimeout(nLimitHintTimerRef.current)
-      nLimitHintTimerRef.current = null
-    }
-  }, [])
-
-  const handleNInputChange = useCallback((value: string) => {
-    setNInput(value)
-    const nextValue = Number(value)
-    if (!Number.isNaN(nextValue) && nextValue > outputImageLimit) {
-      showNLimitHint()
-    } else {
-      hideNLimitHint()
-    }
-  }, [hideNLimitHint, outputImageLimit, showNLimitHint])
-
-  const handleNLimitIncreaseAttempt = useCallback((preventDefault: () => void) => {
-    const currentValue = Number(nInput)
-    const effectiveValue = Number.isNaN(currentValue) ? params.n : currentValue
-    if (!nInputFocused || effectiveValue < outputImageLimit) return
-
-    preventDefault()
-    showNLimitHint()
-  }, [nInput, nInputFocused, outputImageLimit, params.n, showNLimitHint])
 
   const showModerationHint = () => {
     if (moderationDisabled) setModerationHintVisible(true)
@@ -1608,32 +1552,23 @@ export default function InputBar() {
           text={isFalProvider ? `fal.ai ${tx('不支持审核参数')}` : t('input.responsesModerationUnsupported')}
         />
       </label>
-      <label className="relative flex flex-col gap-0.5">
-        <span className="text-gray-400 dark:text-gray-500 ml-1">{t('input.count')}</span>
-        <input
-          value={nInput}
-          onChange={(e) => handleNInputChange(e.target.value)}
-          onFocus={() => setNInputFocused(true)}
-          onBlur={() => {
-            setNInputFocused(false)
-            commitN()
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'ArrowUp') {
-              handleNLimitIncreaseAttempt(() => e.preventDefault())
-            }
-          }}
-          onWheel={(e) => {
-            if (e.deltaY < 0) {
-              handleNLimitIncreaseAttempt(() => e.preventDefault())
-            }
-          }}
-          type="number"
-          min={1}
-          max={outputImageLimit}
-          className="px-3 py-1.5 rounded-xl border border-gray-200/60 dark:border-white/[0.08] bg-white/50 dark:bg-white/[0.03] focus:outline-none text-xs transition-all duration-200 shadow-sm"
+      <label className="flex flex-col gap-0.5">
+        <span className="text-gray-400 dark:text-gray-500 ml-1">
+          {t('input.count')}
+          {showCountLimitHint ? ` · ${t('input.keyCountLimit', { max: outputImageLimit })}` : ''}
+        </span>
+        <Select
+          value={Math.min(params.n, outputImageLimit)}
+          onChange={(val) => setParams({ n: Number(val) || 1 })}
+          options={Array.from({ length: outputImageLimit }, (_, index) => {
+            const value = index + 1
+            return { label: String(value), value }
+          })}
+          disabled={keyBlockedByTaskLimit || keyBlockedByQuota}
+          className={keyBlockedByTaskLimit || keyBlockedByQuota
+            ? 'px-3 py-1.5 rounded-xl border border-gray-200/60 dark:border-white/[0.08] bg-gray-100/50 dark:bg-white/[0.05] opacity-50 cursor-not-allowed text-xs transition-all duration-200 shadow-sm'
+            : selectClass}
         />
-        <ButtonTooltip visible={nLimitHintVisible} text={nLimitHintText} />
       </label>
     </div>
   )
